@@ -18,11 +18,13 @@ env:
 
 jobs:
   ci:
+    name: Lint + Test + Build
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
       - id: loc
+        name: Locate frontend directory
         run: |
           set -euo pipefail
           CANDIDATES=("frontend" "apps/frontend" "packages/frontend")
@@ -33,7 +35,7 @@ jobs:
           if [ -z "$DIR" ]; then
             DIR=$(find . -maxdepth 3 -type f -name package.json -printf '%h\n' | grep -E '/frontend$|^./frontend$' | head -n1 || true)
           fi
-          [ -n "$DIR" ] || { echo "❌ frontend directory not found"; exit 2; }
+          [ -n "$DIR" ] || { echo "frontend directory not found"; exit 2; }
           echo "dir=${DIR#./}" >> "$GITHUB_OUTPUT"
 
       - uses: actions/setup-node@v4
@@ -55,7 +57,7 @@ jobs:
 
       - name: Assert lockfile
         run: |
-          test -f "${{ steps.loc.outputs.dir }}/package-lock.json" || { echo "❌ ${{ steps.loc.outputs.dir }}/package-lock.json not found"; exit 2; }
+          test -f "${{ steps.loc.outputs.dir }}/package-lock.json" || { echo "${{ steps.loc.outputs.dir }}/package-lock.json not found"; exit 2; }
 
       - name: Install
         working-directory: ${{ steps.loc.outputs.dir }}
@@ -71,6 +73,7 @@ jobs:
         run: npm test --if-present -- --ci --reporters=default --watch=false
 
       - id: out
+        name: Resolve build output dir
         working-directory: ${{ steps.loc.outputs.dir }}
         run: |
           if [ -f angular.json ]; then
@@ -101,6 +104,7 @@ jobs:
           path: ${{ steps.loc.outputs.dir }}/${{ steps.out.outputs.dir }}
 
   deploy:
+    name: Deploy to Raspberry Pi
     needs: ci
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
@@ -110,6 +114,7 @@ jobs:
       - uses: actions/checkout@v4
 
       - id: loc
+        name: Locate frontend directory
         run: |
           set -euo pipefail
           CANDIDATES=("frontend" "apps/frontend" "packages/frontend")
@@ -120,7 +125,7 @@ jobs:
           if [ -z "$DIR" ]; then
             DIR=$(find . -maxdepth 3 -type f -name package.json -printf '%h\n' | grep -E '/frontend$|^./frontend$' | head -n1 || true)
           fi
-          [ -n "$DIR" ] || { echo "❌ frontend directory not found"; exit 2; }
+          [ -n "$DIR" ] || { echo "frontend directory not found"; exit 2; }
           echo "dir=${DIR#./}" >> "$GITHUB_OUTPUT"
 
       - uses: actions/setup-node@v4
@@ -142,7 +147,7 @@ jobs:
 
       - name: Assert lockfile
         run: |
-          test -f "${{ steps.loc.outputs.dir }}/package-lock.json" || { echo "❌ ${{ steps.loc.outputs.dir }}/package-lock.json not found"; exit 2; }
+          test -f "${{ steps.loc.outputs.dir }}/package-lock.json" || { echo "${{ steps.loc.outputs.dir }}/package-lock.json not found"; exit 2; }
 
       - name: Install + Build
         working-directory: ${{ steps.loc.outputs.dir }}
@@ -180,17 +185,14 @@ jobs:
           key: ${{ secrets.PI_SSH_KEY }}
           port: ${{ secrets.PI_SSH_PORT || 22 }}
           script_stop: true
-        env:
-          GITHUB_SHA: ${{ github.sha }}
-            with:
           script: |
             set -euo pipefail
             ROOT="/srv/www/frontend"
             RELEASES="$ROOT/releases"
             CURRENT="$ROOT/current"
-            NEW="$RELEASES/${GITHUB_SHA}"
+            NEW="$RELEASES/${{ github.sha }}"
             mkdir -p "$RELEASES" "$NEW"
-            tar -xzf "/tmp/frontend_${GITHUB_SHA}.tgz" -C "$NEW"
+            tar -xzf "/tmp/frontend_${{ github.sha }}.tgz" -C "$NEW"
             if [ "$(find "$NEW" -mindepth 1 -maxdepth 1 -type d | wc -l)" -eq 1 ] && [ ! -f "$NEW/index.html" ]; then
               INNER=$(find "$NEW" -mindepth 1 -maxdepth 1 -type d | head -n1)
               rsync -a --delete "$INNER"/ "$NEW"/
