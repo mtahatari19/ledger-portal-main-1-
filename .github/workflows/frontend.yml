@@ -26,28 +26,19 @@ jobs:
         working-directory: ${{ env.WORKDIR }}
     steps:
       - uses: actions/checkout@v4
-
-      # Use Node with npm cache
-      - name: Use Node
-        uses: actions/setup-node@v4
+      - uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: npm
           cache-dependency-path: ${{ env.WORKDIR }}/package-lock.json
-
-      - name: Install deps
-        run: npm ci
-
-      - name: Lint (PR only)
-        if: github.event_name == 'pull_request'
+      - run: mkdir -p ~/.npm
+      - run: |
+          [ -f package-lock.json ] || { echo "❌ package-lock.json پیدا نشد"; exit 2; }
+      - run: npm ci
+      - if: github.event_name == 'pull_request'
         run: npm run lint --if-present
-
-      - name: Tests
-        run: npm test --if-present -- --ci --reporters=default --watch=false
-
-      # Resolve dist/build output for React/Angular
-      - name: Resolve build output dir
-        id: out
+      - run: npm test --if-present -- --ci --reporters=default --watch=false
+      - id: out
         run: |
           if [ -f angular.json ]; then
             DEFAULT_PROJECT=$(jq -r '.defaultProject // empty' angular.json)
@@ -57,9 +48,7 @@ jobs:
             OUT="build"
           fi
           echo "dir=$OUT" >> $GITHUB_OUTPUT
-
-      - name: Build (production)
-        run: |
+      - run: |
           if npm run -s | grep -q "^  build"; then
             npm run build
           else
@@ -67,16 +56,14 @@ jobs:
           fi
         env:
           CI: "true"
-
-      - name: Upload artifact (PR)
-        if: github.event_name == 'pull_request'
+      - if: github.event_name == 'pull_request'
         uses: actions/upload-artifact@v4
         with:
           name: frontend-build-pr-${{ github.run_id }}
           path: ${{ env.WORKDIR }}/${{ steps.out.outputs.dir }}
 
   deploy:
-    name: Deploy to Raspberry Pi (atomic rsync)
+    name: Deploy to Raspberry Pi
     needs: ci
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
@@ -84,16 +71,15 @@ jobs:
       RELEASE_TGZ: frontend_${{ github.sha }}.tgz
     steps:
       - uses: actions/checkout@v4
-
-      - name: Use Node
-        uses: actions/setup-node@v4
+      - uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: npm
           cache-dependency-path: ${{ env.WORKDIR }}/package-lock.json
-
-      - name: Install + Build
-        working-directory: ${{ env.WORKDIR }}
+      - run: mkdir -p ~/.npm
+      - run: |
+          [ -f "${{ env.WORKDIR }}/package-lock.json" ] || { echo "❌ frontend/package-lock.json نیست"; exit 2; }
+      - working-directory: ${{ env.WORKDIR }}
         run: |
           npm ci
           if [ -f angular.json ]; then
@@ -106,12 +92,8 @@ jobs:
             echo "OUT_DIR=build" >> $GITHUB_ENV
             npm run build
           fi
-
-      - name: Pack build
-        run: tar -C ${{ env.WORKDIR }} -czf ${{ env.RELEASE_TGZ }} "$OUT_DIR"
-
-      - name: Copy tar to Pi
-        uses: appleboy/scp-action@v0.1.7
+      - run: tar -C ${{ env.WORKDIR }} -czf ${{ env.RELEASE_TGZ }} "$OUT_DIR"
+      - uses: appleboy/scp-action@v0.1.7
         with:
           host: ${{ secrets.PI_HOST }}
           username: ${{ secrets.PI_USER }}
@@ -119,9 +101,7 @@ jobs:
           port: ${{ secrets.PI_SSH_PORT || 22 }}
           source: "${{ env.RELEASE_TGZ }}"
           target: "/tmp/${{ env.RELEASE_TGZ }}"
-
-      - name: Atomic switch (keep 5)
-        uses: appleboy/ssh-action@v1.2.0
+      - uses: appleboy/ssh-action@v1.2.0
         with:
           host: ${{ secrets.PI_HOST }}
           username: ${{ secrets.PI_USER }}
@@ -136,20 +116,15 @@ jobs:
             NEW="$RELEASES/${GITHUB_SHA}"
             mkdir -p "$RELEASES" "$NEW"
             tar -xzf "/tmp/frontend_${GITHUB_SHA}.tgz" -C "$NEW"
-
-            # If output nested like dist/app, flatten it
             if [ "$(find "$NEW" -mindepth 1 -maxdepth 1 -type d | wc -l)" -eq 1 ] && [ ! -f "$NEW/index.html" ]; then
               INNER=$(find "$NEW" -mindepth 1 -maxdepth 1 -type d | head -n1)
               rsync -a --delete "$INNER"/ "$NEW"/
               rm -rf "$INNER"
             fi
-
             ln -sfn "$NEW" "$CURRENT"
             ls -1dt "$RELEASES"/* | tail -n +6 | xargs -r rm -rf
             sudo systemctl reload nginx || true
-
-      - name: Notify (success/failure)
-        if: always()
+      - if: always()
         run: |
           curl -fsS -X POST "$WEBHOOK_URL" \
             -H "Content-Type: application/json" \
