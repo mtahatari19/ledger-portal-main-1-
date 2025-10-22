@@ -29,7 +29,11 @@ jobs:
         name: Preflight
         run: |
           set -euo pipefail
-          echo "sudo_available=$(if sudo -n true 2>/dev/null; then echo true; else echo false; fi)" >> "$GITHUB_OUTPUT"
+          if sudo -n true 2>/dev/null; then
+            echo "sudo_available=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "sudo_available=false" >> "$GITHUB_OUTPUT"
+          fi
 
       - name: Ensure jq
         run: |
@@ -113,9 +117,9 @@ jobs:
             ~/.vite
             ${{ steps.loc.outputs.dir }}/.next/cache
             ${{ steps.loc.outputs.dir }}/.angular/cache
-          key: bt-${{ runner.os }}-${{ hashFiles('**/*') }}
+          key: bt-${{ runner.os }}-${{ env.NODE_VERSION }}-${{ github.sha }}
           restore-keys: |
-            bt-${{ runner.os }}-
+            bt-${{ runner.os }}-${{ env.NODE_VERSION }}-
 
       - name: Assert lockfile
         run: |
