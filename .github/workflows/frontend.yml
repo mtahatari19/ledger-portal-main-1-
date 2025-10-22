@@ -81,7 +81,10 @@ jobs:
 
       - name: Install
         working-directory: ${{ steps.loc.outputs.dir }}
-        run: npm ci
+        env:
+          HUSKY: "0"
+          CI: "true"
+        run: npm ci --no-audit --no-fund
 
       - name: Lint (PR only)
         if: github.event_name == 'pull_request'
@@ -189,8 +192,11 @@ jobs:
 
       - name: Install + Build
         working-directory: ${{ steps.loc.outputs.dir }}
+        env:
+          HUSKY: "0"
+          CI: "true"
         run: |
-          npm ci
+          npm ci --no-audit --no-fund
           if [ -f angular.json ]; then
             DEFAULT_PROJECT=$(jq -r '.defaultProject // empty' angular.json)
             [ -z "$DEFAULT_PROJECT" -o "$DEFAULT_PROJECT" = "null" ] && DEFAULT_PROJECT=$(jq -r '.projects | keys[0]' angular.json)
