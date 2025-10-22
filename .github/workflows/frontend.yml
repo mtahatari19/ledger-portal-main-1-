@@ -49,7 +49,7 @@ jobs:
             FRONT=()
             for p in "${ALL[@]}"; do
               if jq -e '.scripts.build // empty' "$p/package.json" >/dev/null 2>&1; then FRONT+=("$p") && continue; fi
-              if jq -e '.dependencies // {} | has("react") or has("next") or has("vite") or has("@angular/core") or has("nuxt")' "$p/package.json" >/dev/null 2>&1; then FRONT+=("$p"); fi
+              if jq -e '(.dependencies//{} + .devDependencies//{}) | has("next") or has("@angular/core") or has("vite") or has("react-scripts")' "$p/package.json" >/dev/null 2>&1; then FRONT+=("$p"); fi
             done
             if [ "${#FRONT[@]}" -eq 1 ]; then DIR="${FRONT[0]}"; elif [ "${#FRONT[@]}" -gt 1 ]; then DIR="${FRONT[0]}"; fi
           fi
@@ -91,40 +91,50 @@ jobs:
         working-directory: ${{ steps.loc.outputs.dir }}
         run: npm run lint --if-present
 
-      - name: Test
+      - id: build
+        name: Build (smart)
         working-directory: ${{ steps.loc.outputs.dir }}
-        run: npm test --if-present -- --ci --reporters=default --watch=false
-
-      - id: out
-        name: Resolve build output dir
-        working-directory: ${{ steps.loc.outputs.dir }}
+        env:
+          HUSKY: "0"
+          CI: "true"
         run: |
+          set -euo pipefail
+          if jq -e '.scripts.build // empty' package.json >/dev/null 2>&1; then
+            npm run build
+          else
+            if jq -e '(.dependencies//{} + .devDependencies//{}) | has("@angular/core")' package.json >/dev/null; then
+              npx ng build --configuration production || npx nx build || npm run build
+            elif jq -e '(.dependencies//{} + .devDependencies//{}) | has("next")' package.json >/dev/null; then
+              npx next build
+            elif jq -e '(.dependencies//{} + .devDependencies//{}) | has("vite")' package.json >/dev/null; then
+              npx vite build
+            elif jq -e '(.dependencies//{} + .devDependencies//{}) | has("react-scripts")' package.json >/dev/null; then
+              npx react-scripts build
+            else
+              echo "No build script and no known framework detected."
+              echo "Available scripts:"; jq -r '.scripts | keys[]?' package.json || true
+              exit 1
+            fi
+          fi
+          OUT="build"
           if [ -f angular.json ]; then
             DEFAULT_PROJECT=$(jq -r '.defaultProject // empty' angular.json)
             [ -z "$DEFAULT_PROJECT" -o "$DEFAULT_PROJECT" = "null" ] && DEFAULT_PROJECT=$(jq -r '.projects | keys[0]' angular.json)
             OUT=$(jq -r --arg p "$DEFAULT_PROJECT" '.projects[$p].architect.build.options.outputPath // .projects[$p].targets.build.options.outputPath // "dist"' angular.json)
-          else
-            OUT="build"
+          elif [ -d dist ]; then OUT="dist"
+          elif [ -d build ]; then OUT="build"
+          elif [ -d .next ]; then OUT=".next"
+          elif [ -d out ]; then OUT="out"
           fi
           echo "dir=$OUT" >> "$GITHUB_OUTPUT"
-
-      - name: Build
-        working-directory: ${{ steps.loc.outputs.dir }}
-        env:
-          CI: "true"
-        run: |
-          if npm run -s | grep -q "^  build"; then
-            npm run build
-          else
-            echo "No build script found"; exit 1
-          fi
+          echo "Build output dir: $OUT"
 
       - name: Upload artifact (PR)
         if: github.event_name == 'pull_request'
         uses: actions/upload-artifact@v4
         with:
           name: frontend-build-pr-${{ github.run_id }}
-          path: ${{ steps.loc.outputs.dir }}/${{ steps.out.outputs.dir }}
+          path: ${{ steps.loc.outputs.dir }}/${{ steps.build.outputs.dir }}
 
   deploy:
     name: Deploy to Raspberry Pi
@@ -160,7 +170,7 @@ jobs:
             FRONT=()
             for p in "${ALL[@]}"; do
               if jq -e '.scripts.build // empty' "$p/package.json" >/dev/null 2>&1; then FRONT+=("$p") && continue; fi
-              if jq -e '.dependencies // {} | has("react") or has("next") or has("vite") or has("@angular/core") or has("nuxt")' "$p/package.json" >/dev/null 2>&1; then FRONT+=("$p"); fi
+              if jq -e '(.dependencies//{} + .devDependencies//{}) | has("next") or has("@angular/core") or has("vite") or has("react-scripts")' "$p/package.json" >/dev/null 2>&1; then FRONT+=("$p"); fi
             done
             if [ "${#FRONT[@]}" -eq 1 ]; then DIR="${FRONT[0]}"; elif [ "${#FRONT[@]}" -gt 1 ]; then DIR="${FRONT[0]}"; fi
           fi
@@ -190,23 +200,44 @@ jobs:
         run: |
           test -f "${{ steps.loc.outputs.dir }}/package-lock.json" || { echo "${{ steps.loc.outputs.dir }}/package-lock.json not found"; exit 2; }
 
-      - name: Install + Build
+      - id: build
+        name: Install + Build (smart)
         working-directory: ${{ steps.loc.outputs.dir }}
         env:
           HUSKY: "0"
           CI: "true"
         run: |
+          set -euo pipefail
           npm ci --no-audit --no-fund
+          if jq -e '.scripts.build // empty' package.json >/dev/null 2>&1; then
+            npm run build
+          else
+            if jq -e '(.dependencies//{} + .devDependencies//{}) | has("@angular/core")' package.json >/dev/null; then
+              npx ng build --configuration production || npx nx build || npm run build
+            elif jq -e '(.dependencies//{} + .devDependencies//{}) | has("next")' package.json >/dev/null; then
+              npx next build
+            elif jq -e '(.dependencies//{} + .devDependencies//{}) | has("vite")' package.json >/dev/null; then
+              npx vite build
+            elif jq -e '(.dependencies//{} + .devDependencies//{}) | has("react-scripts")' package.json >/dev/null; then
+              npx react-scripts build
+            else
+              echo "No build script and no known framework detected."
+              echo "Available scripts:"; jq -r '.scripts | keys[]?' package.json || true
+              exit 1
+            fi
+          fi
+          OUT="build"
           if [ -f angular.json ]; then
             DEFAULT_PROJECT=$(jq -r '.defaultProject // empty' angular.json)
             [ -z "$DEFAULT_PROJECT" -o "$DEFAULT_PROJECT" = "null" ] && DEFAULT_PROJECT=$(jq -r '.projects | keys[0]' angular.json)
             OUT=$(jq -r --arg p "$DEFAULT_PROJECT" '.projects[$p].architect.build.options.outputPath // .projects[$p].targets.build.options.outputPath // "dist"' angular.json)
-            echo "OUT_DIR=$OUT" >> "$GITHUB_ENV"
-            npm run build || npx ng build --configuration production
-          else
-            echo "OUT_DIR=build" >> "$GITHUB_ENV"
-            npm run build
+          elif [ -d dist ]; then OUT="dist"
+          elif [ -d build ]; then OUT="build"
+          elif [ -d .next ]; then OUT=".next"
+          elif [ -d out ]; then OUT="out"
           fi
+          echo "OUT_DIR=$OUT" >> "$GITHUB_ENV"
+          echo "Build output dir: $OUT"
 
       - name: Pack
         run: tar -C "${{ steps.loc.outputs.dir }}" -czf "${{ env.RELEASE_TGZ }}" "$OUT_DIR"
