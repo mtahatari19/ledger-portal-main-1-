@@ -4,12 +4,14 @@ on:
   push:
     branches: [main]
     paths:
-      - "**/frontend/**"
+      - "**/package.json"
+      - "**/src/**"
       - ".github/workflows/frontend.yml"
   pull_request:
     branches: [main]
     paths:
-      - "**/frontend/**"
+      - "**/package.json"
+      - "**/src/**"
       - ".github/workflows/frontend.yml"
 
 env:
@@ -23,19 +25,37 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Ensure jq
+        run: |
+          if ! command -v jq >/dev/null 2>&1; then
+            sudo apt-get update && sudo apt-get install -y jq
+          fi
+
       - id: loc
-        name: Locate frontend directory
+        name: Locate frontend directory (smart)
         run: |
           set -euo pipefail
-          CANDIDATES=("frontend" "apps/frontend" "packages/frontend")
+          if [ -n "${FRONTEND_DIR:-}" ]; then
+            [ -d "$FRONTEND_DIR" ] && [ -f "$FRONTEND_DIR/package.json" ] || { echo "FRONTEND_DIR invalid"; exit 2; }
+            echo "dir=${FRONTEND_DIR#./}" >> "$GITHUB_OUTPUT"; exit 0
+          fi
+          CANDIDATES=("frontend" "web" "app" "ui" "client" "apps/frontend" "apps/web" "packages/frontend" "packages/web")
           DIR=""
           for d in "${CANDIDATES[@]}"; do
             if [ -d "$d" ] && [ -f "$d/package.json" ]; then DIR="$d"; break; fi
           done
           if [ -z "$DIR" ]; then
-            DIR=$(find . -maxdepth 3 -type f -name package.json -printf '%h\n' | grep -E '/frontend$|^./frontend$' | head -n1 || true)
+            mapfile -t ALL < <(find . -type f -name package.json -not -path "*/node_modules/*" -printf '%h\n' | sort -u)
+            FRONT=()
+            for p in "${ALL[@]}"; do
+              if jq -e '.scripts.build // empty' "$p/package.json" >/dev/null 2>&1; then FRONT+=("$p") && continue; fi
+              if jq -e '.dependencies // {} | has("react") or has("next") or has("vite") or has("@angular/core") or has("nuxt")' "$p/package.json" >/dev/null 2>&1; then FRONT+=("$p"); fi
+            done
+            if [ "${#FRONT[@]}" -eq 1 ]; then DIR="${FRONT[0]}"; elif [ "${#FRONT[@]}" -gt 1 ]; then DIR="${FRONT[0]}"; fi
           fi
-          [ -n "$DIR" ] || { echo "frontend directory not found"; exit 2; }
+          if [ -z "$DIR" ] && [ -f package.json ] && jq -e '.scripts.build // empty' package.json >/dev/null 2>&1; then DIR="."; fi
+          [ -n "$DIR" ] || { echo "Could not locate frontend folder"; exit 2; }
+          echo "Using: $DIR"
           echo "dir=${DIR#./}" >> "$GITHUB_OUTPUT"
 
       - uses: actions/setup-node@v4
@@ -113,19 +133,37 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Ensure jq
+        run: |
+          if ! command -v jq >/dev/null 2>&1; then
+            sudo apt-get update && sudo apt-get install -y jq
+          fi
+
       - id: loc
-        name: Locate frontend directory
+        name: Locate frontend directory (smart)
         run: |
           set -euo pipefail
-          CANDIDATES=("frontend" "apps/frontend" "packages/frontend")
+          if [ -n "${FRONTEND_DIR:-}" ]; then
+            [ -d "$FRONTEND_DIR" ] && [ -f "$FRONTEND_DIR/package.json" ] || { echo "FRONTEND_DIR invalid"; exit 2; }
+            echo "dir=${FRONTEND_DIR#./}" >> "$GITHUB_OUTPUT"; exit 0
+          fi
+          CANDIDATES=("frontend" "web" "app" "ui" "client" "apps/frontend" "apps/web" "packages/frontend" "packages/web")
           DIR=""
           for d in "${CANDIDATES[@]}"; do
             if [ -d "$d" ] && [ -f "$d/package.json" ]; then DIR="$d"; break; fi
           done
           if [ -z "$DIR" ]; then
-            DIR=$(find . -maxdepth 3 -type f -name package.json -printf '%h\n' | grep -E '/frontend$|^./frontend$' | head -n1 || true)
+            mapfile -t ALL < <(find . -type f -name package.json -not -path "*/node_modules/*" -printf '%h\n' | sort -u)
+            FRONT=()
+            for p in "${ALL[@]}"; do
+              if jq -e '.scripts.build // empty' "$p/package.json" >/dev/null 2>&1; then FRONT+=("$p") && continue; fi
+              if jq -e '.dependencies // {} | has("react") or has("next") or has("vite") or has("@angular/core") or has("nuxt")' "$p/package.json" >/dev/null 2>&1; then FRONT+=("$p"); fi
+            done
+            if [ "${#FRONT[@]}" -eq 1 ]; then DIR="${FRONT[0]}"; elif [ "${#FRONT[@]}" -gt 1 ]; then DIR="${FRONT[0]}"; fi
           fi
-          [ -n "$DIR" ] || { echo "frontend directory not found"; exit 2; }
+          if [ -z "$DIR" ] && [ -f package.json ] && jq -e '.scripts.build // empty' package.json >/dev/null 2>&1; then DIR="."; fi
+          [ -n "$DIR" ] || { echo "Could not locate frontend folder"; exit 2; }
+          echo "Using: $DIR"
           echo "dir=${DIR#./}" >> "$GITHUB_OUTPUT"
 
       - uses: actions/setup-node@v4
