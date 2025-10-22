@@ -16,7 +16,6 @@ on:
 
 env:
   NODE_VERSION: "20"
-  WEBHOOK_URL: ${{ secrets.NOTIFY_WEBHOOK_URL }}
 
 jobs:
   ci:
@@ -276,11 +275,3 @@ jobs:
             ln -sfn "$NEW" "$CURRENT"
             ls -1dt "$RELEASES"/* | tail -n +6 | xargs -r rm -rf
             sudo systemctl reload nginx || true
-
-      - name: Notify
-        if: always()
-        run: |
-          curl -fsS -X POST "$WEBHOOK_URL" \
-            -H "Content-Type: application/json" \
-            -d "$(jq -n --arg s "${{ job.status }}" --arg r "$GITHUB_REPOSITORY" --arg u "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID" \
-            '{text: ("Frontend deploy: " + $s + " — " + $r + " → " + $u)}')"
