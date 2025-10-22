@@ -29,16 +29,7 @@ jobs:
         name: Preflight
         run: |
           set -euo pipefail
-          echo "USER=$(whoami)"
-          echo "PWD=$PWD"
-          echo "HOME=$HOME"
-          echo "SHELL=$SHELL"
-          echo "PATH=$PATH"
-          if sudo -n true 2>/dev/null; then
-            echo "sudo_available=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "sudo_available=false" >> "$GITHUB_OUTPUT"
-          fi
+          echo "sudo_available=$(if sudo -n true 2>/dev/null; then echo true; else echo false; fi)" >> "$GITHUB_OUTPUT"
 
       - name: Ensure jq
         run: |
@@ -47,7 +38,7 @@ jobs:
             if [ "${{ steps.preflight.outputs.sudo_available }}" = "true" ]; then
               sudo apt-get update && sudo apt-get install -y jq
             else
-              echo "jq missing and sudo not available"; exit 1
+              exit 1
             fi
           fi
 
@@ -92,19 +83,19 @@ jobs:
         with:
           node-version: ${{ env.NODE_VERSION }}
 
-      - name: Prepare npm cache
+      - name: Prepare npm cache dir
         run: |
           set -euo pipefail
-          mkdir -p "$HOME/.npm/_cacache"
-          echo "NPM_CONFIG_CACHE=$HOME/.npm" >> "$GITHUB_ENV"
+          mkdir -p "${GITHUB_WORKSPACE}/.npm-cache/_cacache"
+          echo "NPM_CONFIG_CACHE=${GITHUB_WORKSPACE}/.npm-cache" >> "$GITHUB_ENV"
 
-      - name: Cache npm
+      - name: Cache npm store
         uses: actions/cache@v4
         with:
-          path: ~/.npm
-          key: npm-${{ runner.os }}-${{ env.NODE_VERSION }}-${{ hashFiles(format('{0}/package-lock.json', steps.loc.outputs.dir)) }}
+          path: ${{ github.workspace }}/.npm-cache
+          key: npmstore-${{ runner.os }}-${{ env.NODE_VERSION }}-${{ hashFiles(format('{0}/package-lock.json', steps.loc.outputs.dir)) }}
           restore-keys: |
-            npm-${{ runner.os }}-${{ env.NODE_VERSION }}-
+            npmstore-${{ runner.os }}-${{ env.NODE_VERSION }}-
 
       - name: Cache node_modules
         uses: actions/cache@v4
@@ -137,7 +128,7 @@ jobs:
         env:
           HUSKY: "0"
           CI: "true"
-          NPM_CONFIG_CACHE: ${{ env.HOME }}/.npm
+          NPM_CONFIG_CACHE: ${{ env.NPM_CONFIG_CACHE }}
           NPM_CONFIG_PROGRESS: "false"
           NPM_CONFIG_AUDIT: "false"
           NPM_CONFIG_FUND: "false"
@@ -145,9 +136,7 @@ jobs:
           NPM_CONFIG_FETCH_RETRIES: "5"
           NPM_CONFIG_FETCH_RETRY_MINTIMEOUT: "1000"
           NPM_CONFIG_FETCH_RETRY_MAXTIMEOUT: "60000"
-        run: |
-          set -euo pipefail
-          npm ci --prefer-offline --no-audit --no-fund
+        run: npm ci --prefer-offline --no-audit --no-fund --cache "$NPM_CONFIG_CACHE"
 
       - id: build
         name: Build
@@ -219,18 +208,3 @@ jobs:
             $SUDO find "$ROOT" -type f -exec chmod 644 {} \;
             $SUDO nginx -t && $SUDO systemctl reload nginx || true
           fi
-
-      - name: Postmortem (on failure)
-        if: failure()
-        run: |
-          set +e
-          echo "::group::Disk"
-          df -h
-          echo "::endgroup::"
-          echo "::group::Node"
-          node -v || true
-          npm -v || true
-          echo "::endgroup::"
-          echo "::group::Workspace tree"
-          find . -maxdepth 2 -mindepth 1 -type d -printf '%p\n' | sort
-          echo "::endgroup::"
