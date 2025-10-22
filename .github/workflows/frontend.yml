@@ -21,13 +21,34 @@ jobs:
   build_and_deploy:
     name: Build + Deploy
     runs-on: self-hosted
+
     steps:
       - uses: actions/checkout@v4
 
+      - id: preflight
+        name: Preflight
+        run: |
+          set -euo pipefail
+          echo "USER=$(whoami)"
+          echo "PWD=$PWD"
+          echo "HOME=$HOME"
+          echo "SHELL=$SHELL"
+          echo "PATH=$PATH"
+          if sudo -n true 2>/dev/null; then
+            echo "sudo_available=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "sudo_available=false" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Ensure jq
         run: |
+          set -euo pipefail
           if ! command -v jq >/dev/null 2>&1; then
-            sudo apt-get update && sudo apt-get install -y jq
+            if [ "${{ steps.preflight.outputs.sudo_available }}" = "true" ]; then
+              sudo apt-get update && sudo apt-get install -y jq
+            else
+              echo "jq missing and sudo not available"; exit 1
+            fi
           fi
 
       - id: loc
@@ -52,9 +73,7 @@ jobs:
           }
           DIR=""
           COMMON=(frontend web app ui client apps/frontend apps/web packages/frontend packages/web)
-          if [ -z "$DIR" ]; then
-            CAND=$(pick_dir "${COMMON[@]}") && DIR="$CAND"
-          fi
+          CAND=$(pick_dir "${COMMON[@]}") && DIR="$CAND" || true
           if [ -z "$DIR" ]; then
             for p in "${PKG_DIRS[@]}"; do
               if jq -e '.scripts.build // empty' "$p/package.json" >/dev/null 2>&1; then DIR="${p#./}"; break; fi
@@ -62,14 +81,10 @@ jobs:
           fi
           if [ -z "$DIR" ]; then
             for p in "${PKG_DIRS[@]}"; do
-              if jq -e '(.dependencies//{} + .devDependencies//{}) | has("next") or has("@angular/core") or has("vite") or has("react-scripts") or has("react")' "$p/package.json" >/dev/null 2>&1; then
-                DIR="${p#./}"; break
-              fi
+              if jq -e '(.dependencies//{} + .devDependencies//{}) | has("next") or has("@angular/core") or has("vite") or has("react-scripts") or has("react")' "$p/package.json" >/dev/null 2>&1; then DIR="${p#./}"; break; fi
             done
           fi
-          if [ -z "$DIR" ] && [ -f package.json ] && jq -e '.scripts.build // empty' package.json >/dev/null 2>&1; then
-            DIR="."
-          fi
+          if [ -z "$DIR" ] && [ -f package.json ] && jq -e '.scripts.build // empty' package.json >/dev/null 2>&1; then DIR="."; fi
           [ -n "$DIR" ] || { echo "Could not locate frontend folder"; exit 2; }
           echo "dir=$DIR" >> "$GITHUB_OUTPUT"
 
@@ -79,6 +94,7 @@ jobs:
 
       - name: Prepare npm cache
         run: |
+          set -euo pipefail
           mkdir -p "$HOME/.npm/_cacache"
           echo "NPM_CONFIG_CACHE=$HOME/.npm" >> "$GITHUB_ENV"
 
@@ -112,9 +128,11 @@ jobs:
 
       - name: Assert lockfile
         run: |
+          set -euo pipefail
           test -f "${{ steps.loc.outputs.dir }}/package-lock.json" || { echo "no lockfile"; exit 2; }
 
-      - name: Install
+      - id: install
+        name: Install
         working-directory: ${{ steps.loc.outputs.dir }}
         env:
           HUSKY: "0"
@@ -127,7 +145,9 @@ jobs:
           NPM_CONFIG_FETCH_RETRIES: "5"
           NPM_CONFIG_FETCH_RETRY_MINTIMEOUT: "1000"
           NPM_CONFIG_FETCH_RETRY_MAXTIMEOUT: "60000"
-        run: npm ci --prefer-offline --no-audit --no-fund
+        run: |
+          set -euo pipefail
+          npm ci --prefer-offline --no-audit --no-fund
 
       - id: build
         name: Build
@@ -168,29 +188,49 @@ jobs:
       - name: Deploy locally
         env:
           OUT_DIR: ${{ steps.build.outputs.dir }}
+          ROOT_DIR: ${{ vars.FRONTEND_ROOT }}
         run: |
           set -euo pipefail
-          ROOT="/srv/www/frontend"
+          SUDO=""
+          if sudo -n true 2>/dev/null; then SUDO="sudo"; fi
+          ROOT="${ROOT_DIR:-/srv/www/frontend}"
           RELEASES="$ROOT/releases"
           CURRENT="$ROOT/current"
           NEW="$RELEASES/${GITHUB_SHA}"
-          sudo mkdir -p "$RELEASES" "$NEW"
+          $SUDO mkdir -p "$RELEASES" "$NEW"
           set +e
-          sudo rsync -a --delete "${{ steps.loc.outputs.dir }}/$OUT_DIR"/ "$NEW"/
+          $SUDO rsync -a --delete "${{ steps.loc.outputs.dir }}/$OUT_DIR"/ "$NEW"/
           RC=$?
           set -e
           if [ "$RC" -ne 0 ] && [ "$RC" -ne 24 ]; then exit "$RC"; fi
           if [ ! -f "$NEW/index.html" ] && [ "$(find "$NEW" -mindepth 1 -maxdepth 1 -type d | wc -l)" -eq 1 ]; then
             INNER=$(find "$NEW" -mindepth 1 -maxdepth 1 -type d | head -n1)
             TMP=$(mktemp -d)
-            sudo rsync -a "$INNER"/ "$TMP"/
-            sudo rm -rf "$NEW"/*
-            sudo rsync -a "$TMP"/ "$NEW"/
-            sudo rm -rf "$TMP" "$INNER" || true
+            $SUDO rsync -a "$INNER"/ "$TMP"/
+            $SUDO rm -rf "$NEW"/*
+            $SUDO rsync -a "$TMP"/ "$NEW"/
+            $SUDO rm -rf "$TMP" "$INNER" || true
           fi
-          sudo ln -sfn "$NEW" "$CURRENT"
-          sudo bash -c 'ls -1dt '"$RELEASES"'/* | tail -n +6 | xargs -r rm -rf'
-          sudo chown -R deploy:www-data "$ROOT"
-          sudo find "$ROOT" -type d -exec chmod 755 {} \;
-          sudo find "$ROOT" -type f -exec chmod 644 {} \;
-          sudo nginx -t && sudo systemctl reload nginx || true
+          $SUDO ln -sfn "$NEW" "$CURRENT"
+          $SUDO bash -c 'ls -1dt '"$RELEASES"'/* | tail -n +6 | xargs -r rm -rf'
+          if [ -n "$SUDO" ]; then
+            $SUDO chown -R deploy:www-data "$ROOT"
+            $SUDO find "$ROOT" -type d -exec chmod 755 {} \;
+            $SUDO find "$ROOT" -type f -exec chmod 644 {} \;
+            $SUDO nginx -t && $SUDO systemctl reload nginx || true
+          fi
+
+      - name: Postmortem (on failure)
+        if: failure()
+        run: |
+          set +e
+          echo "::group::Disk"
+          df -h
+          echo "::endgroup::"
+          echo "::group::Node"
+          node -v || true
+          npm -v || true
+          echo "::endgroup::"
+          echo "::group::Workspace tree"
+          find . -maxdepth 2 -mindepth 1 -type d -printf '%p\n' | sort
+          echo "::endgroup::"
