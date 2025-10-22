@@ -86,9 +86,29 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ~/.npm
-          key: npm-${{ runner.os }}-${{ hashFiles(format('{0}/package-lock.json', steps.loc.outputs.dir)) }}
+          key: npm-${{ runner.os }}-${{ env.NODE_VERSION }}-${{ hashFiles(format('{0}/package-lock.json', steps.loc.outputs.dir)) }}
           restore-keys: |
-            npm-${{ runner.os }}-
+            npm-${{ runner.os }}-${{ env.NODE_VERSION }}-
+
+      - name: Cache node_modules
+        uses: actions/cache@v4
+        with:
+          path: ${{ steps.loc.outputs.dir }}/node_modules
+          key: nm-${{ runner.os }}-${{ env.NODE_VERSION }}-${{ hashFiles(format('{0}/package-lock.json', steps.loc.outputs.dir)) }}
+          restore-keys: |
+            nm-${{ runner.os }}-${{ env.NODE_VERSION }}-
+
+      - name: Cache build tools
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/nx
+            ~/.vite
+            ${{ steps.loc.outputs.dir }}/.next/cache
+            ${{ steps.loc.outputs.dir }}/.angular/cache
+          key: bt-${{ runner.os }}-${{ hashFiles('**/*') }}
+          restore-keys: |
+            bt-${{ runner.os }}-
 
       - name: Assert lockfile
         run: |
@@ -99,7 +119,15 @@ jobs:
         env:
           HUSKY: "0"
           CI: "true"
-        run: npm ci --no-audit --no-fund
+          NPM_CONFIG_CACHE: ${{ env.HOME }}/.npm
+          NPM_CONFIG_PROGRESS: "false"
+          NPM_CONFIG_AUDIT: "false"
+          NPM_CONFIG_FUND: "false"
+          NPM_CONFIG_MAXSOCKETS: "50"
+          NPM_CONFIG_FETCH_RETRIES: "5"
+          NPM_CONFIG_FETCH_RETRY_MINTIMEOUT: "1000"
+          NPM_CONFIG_FETCH_RETRY_MAXTIMEOUT: "60000"
+        run: npm ci --prefer-offline --no-audit --no-fund
 
       - id: build
         name: Build
@@ -147,11 +175,18 @@ jobs:
           CURRENT="$ROOT/current"
           NEW="$RELEASES/${GITHUB_SHA}"
           sudo mkdir -p "$RELEASES" "$NEW"
+          set +e
           sudo rsync -a --delete "${{ steps.loc.outputs.dir }}/$OUT_DIR"/ "$NEW"/
+          RC=$?
+          set -e
+          if [ "$RC" -ne 0 ] && [ "$RC" -ne 24 ]; then exit "$RC"; fi
           if [ ! -f "$NEW/index.html" ] && [ "$(find "$NEW" -mindepth 1 -maxdepth 1 -type d | wc -l)" -eq 1 ]; then
             INNER=$(find "$NEW" -mindepth 1 -maxdepth 1 -type d | head -n1)
-            sudo rsync -a --delete "$INNER"/ "$NEW"/
-            sudo rm -rf "$INNER"
+            TMP=$(mktemp -d)
+            sudo rsync -a "$INNER"/ "$TMP"/
+            sudo rm -rf "$NEW"/*
+            sudo rsync -a "$TMP"/ "$NEW"/
+            sudo rm -rf "$TMP" "$INNER" || true
           fi
           sudo ln -sfn "$NEW" "$CURRENT"
           sudo bash -c 'ls -1dt '"$RELEASES"'/* | tail -n +6 | xargs -r rm -rf'
