@@ -1,0 +1,157 @@
+name: Frontend CI/CD
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "frontend/**"
+      - ".github/workflows/frontend.yml"
+  pull_request:
+    branches: [main]
+    paths:
+      - "frontend/**"
+      - ".github/workflows/frontend.yml"
+
+env:
+  NODE_VERSION: "20"
+  WORKDIR: frontend
+  WEBHOOK_URL: ${{ secrets.NOTIFY_WEBHOOK_URL }}
+
+jobs:
+  ci:
+    name: Lint + Test + Build
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ${{ env.WORKDIR }}
+    steps:
+      - uses: actions/checkout@v4
+
+      # Use Node with npm cache
+      - name: Use Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: ${{ env.WORKDIR }}/package-lock.json
+
+      - name: Install deps
+        run: npm ci
+
+      - name: Lint (PR only)
+        if: github.event_name == 'pull_request'
+        run: npm run lint --if-present
+
+      - name: Tests
+        run: npm test --if-present -- --ci --reporters=default --watch=false
+
+      # Resolve dist/build output for React/Angular
+      - name: Resolve build output dir
+        id: out
+        run: |
+          if [ -f angular.json ]; then
+            DEFAULT_PROJECT=$(jq -r '.defaultProject // empty' angular.json)
+            [ -z "$DEFAULT_PROJECT" -o "$DEFAULT_PROJECT" = "null" ] && DEFAULT_PROJECT=$(jq -r '.projects | keys[0]' angular.json)
+            OUT=$(jq -r --arg p "$DEFAULT_PROJECT" '.projects[$p].architect.build.options.outputPath // .projects[$p].targets.build.options.outputPath // "dist"' angular.json)
+          else
+            OUT="build"
+          fi
+          echo "dir=$OUT" >> $GITHUB_OUTPUT
+
+      - name: Build (production)
+        run: |
+          if npm run -s | grep -q "^  build"; then
+            npm run build
+          else
+            echo "No build script found" && exit 1
+          fi
+        env:
+          CI: "true"
+
+      - name: Upload artifact (PR)
+        if: github.event_name == 'pull_request'
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-build-pr-${{ github.run_id }}
+          path: ${{ env.WORKDIR }}/${{ steps.out.outputs.dir }}
+
+  deploy:
+    name: Deploy to Raspberry Pi (atomic rsync)
+    needs: ci
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    env:
+      RELEASE_TGZ: frontend_${{ github.sha }}.tgz
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Use Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: ${{ env.WORKDIR }}/package-lock.json
+
+      - name: Install + Build
+        working-directory: ${{ env.WORKDIR }}
+        run: |
+          npm ci
+          if [ -f angular.json ]; then
+            DEFAULT_PROJECT=$(jq -r '.defaultProject // empty' angular.json)
+            [ -z "$DEFAULT_PROJECT" -o "$DEFAULT_PROJECT" = "null" ] && DEFAULT_PROJECT=$(jq -r '.projects | keys[0]' angular.json)
+            OUT=$(jq -r --arg p "$DEFAULT_PROJECT" '.projects[$p].architect.build.options.outputPath // .projects[$p].targets.build.options.outputPath // "dist"' angular.json)
+            echo "OUT_DIR=$OUT" >> $GITHUB_ENV
+            npm run build || npx ng build --configuration production
+          else
+            echo "OUT_DIR=build" >> $GITHUB_ENV
+            npm run build
+          fi
+
+      - name: Pack build
+        run: tar -C ${{ env.WORKDIR }} -czf ${{ env.RELEASE_TGZ }} "$OUT_DIR"
+
+      - name: Copy tar to Pi
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.PI_HOST }}
+          username: ${{ secrets.PI_USER }}
+          key: ${{ secrets.PI_SSH_KEY }}
+          port: ${{ secrets.PI_SSH_PORT || 22 }}
+          source: "${{ env.RELEASE_TGZ }}"
+          target: "/tmp/${{ env.RELEASE_TGZ }}"
+
+      - name: Atomic switch (keep 5)
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.PI_HOST }}
+          username: ${{ secrets.PI_USER }}
+          key: ${{ secrets.PI_SSH_KEY }}
+          port: ${{ secrets.PI_SSH_PORT || 22 }}
+          script_stop: true
+          script: |
+            set -euo pipefail
+            ROOT="/srv/www/frontend"
+            RELEASES="$ROOT/releases"
+            CURRENT="$ROOT/current"
+            NEW="$RELEASES/${GITHUB_SHA}"
+            mkdir -p "$RELEASES" "$NEW"
+            tar -xzf "/tmp/frontend_${GITHUB_SHA}.tgz" -C "$NEW"
+
+            # If output nested like dist/app, flatten it
+            if [ "$(find "$NEW" -mindepth 1 -maxdepth 1 -type d | wc -l)" -eq 1 ] && [ ! -f "$NEW/index.html" ]; then
+              INNER=$(find "$NEW" -mindepth 1 -maxdepth 1 -type d | head -n1)
+              rsync -a --delete "$INNER"/ "$NEW"/
+              rm -rf "$INNER"
+            fi
+
+            ln -sfn "$NEW" "$CURRENT"
+            ls -1dt "$RELEASES"/* | tail -n +6 | xargs -r rm -rf
+            sudo systemctl reload nginx || true
+
+      - name: Notify (success/failure)
+        if: always()
+        run: |
+          curl -fsS -X POST "$WEBHOOK_URL" \
+            -H "Content-Type: application/json" \
+            -d "$(jq -n --arg s "${{ job.status }}" --arg r "$GITHUB_REPOSITORY" --arg u "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID" \
+            '{text: ("Frontend deploy: " + $s + " — " + $r + " → " + $u)}')"
