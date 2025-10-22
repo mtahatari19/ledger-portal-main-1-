@@ -4,28 +4,37 @@ on:
   push:
     branches: [main]
     paths:
-      - "frontend/**"
+      - "**/frontend/**"
       - ".github/workflows/frontend.yml"
   pull_request:
     branches: [main]
     paths:
-      - "frontend/**"
+      - "**/frontend/**"
       - ".github/workflows/frontend.yml"
 
 env:
   NODE_VERSION: "20"
-  WORKDIR: frontend
   WEBHOOK_URL: ${{ secrets.NOTIFY_WEBHOOK_URL }}
 
 jobs:
   ci:
-    name: Lint + Test + Build
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: ${{ env.WORKDIR }}
     steps:
       - uses: actions/checkout@v4
+
+      - id: loc
+        run: |
+          set -euo pipefail
+          CANDIDATES=("frontend" "apps/frontend" "packages/frontend")
+          DIR=""
+          for d in "${CANDIDATES[@]}"; do
+            if [ -d "$d" ] && [ -f "$d/package.json" ]; then DIR="$d"; break; fi
+          done
+          if [ -z "$DIR" ]; then
+            DIR=$(find . -maxdepth 3 -type f -name package.json -printf '%h\n' | grep -E '/frontend$|^./frontend$' | head -n1 || true)
+          fi
+          [ -n "$DIR" ] || { echo "❌ frontend directory not found"; exit 2; }
+          echo "dir=${DIR#./}" >> "$GITHUB_OUTPUT"
 
       - uses: actions/setup-node@v4
         with:
@@ -40,20 +49,29 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ~/.npm
-          key: npm-${{ runner.os }}-${{ hashFiles(format('{0}/package-lock.json', env.WORKDIR)) }}
+          key: npm-${{ runner.os }}-${{ hashFiles(format('{0}/package-lock.json', steps.loc.outputs.dir)) }}
           restore-keys: |
             npm-${{ runner.os }}-
 
       - name: Assert lockfile
         run: |
-          test -f package-lock.json || { echo "package-lock.json not found"; exit 2; }
+          test -f "${{ steps.loc.outputs.dir }}/package-lock.json" || { echo "❌ ${{ steps.loc.outputs.dir }}/package-lock.json not found"; exit 2; }
 
-      - run: npm ci
-      - if: github.event_name == 'pull_request'
+      - name: Install
+        working-directory: ${{ steps.loc.outputs.dir }}
+        run: npm ci
+
+      - name: Lint (PR only)
+        if: github.event_name == 'pull_request'
+        working-directory: ${{ steps.loc.outputs.dir }}
         run: npm run lint --if-present
-      - run: npm test --if-present -- --ci --reporters=default --watch=false
+
+      - name: Test
+        working-directory: ${{ steps.loc.outputs.dir }}
+        run: npm test --if-present -- --ci --reporters=default --watch=false
 
       - id: out
+        working-directory: ${{ steps.loc.outputs.dir }}
         run: |
           if [ -f angular.json ]; then
             DEFAULT_PROJECT=$(jq -r '.defaultProject // empty' angular.json)
@@ -62,25 +80,27 @@ jobs:
           else
             OUT="build"
           fi
-          echo "dir=$OUT" >> $GITHUB_OUTPUT
+          echo "dir=$OUT" >> "$GITHUB_OUTPUT"
 
-      - run: |
+      - name: Build
+        working-directory: ${{ steps.loc.outputs.dir }}
+        env:
+          CI: "true"
+        run: |
           if npm run -s | grep -q "^  build"; then
             npm run build
           else
             echo "No build script found"; exit 1
           fi
-        env:
-          CI: "true"
 
-      - if: github.event_name == 'pull_request'
+      - name: Upload artifact (PR)
+        if: github.event_name == 'pull_request'
         uses: actions/upload-artifact@v4
         with:
           name: frontend-build-pr-${{ github.run_id }}
-          path: ${{ env.WORKDIR }}/${{ steps.out.outputs.dir }}
+          path: ${{ steps.loc.outputs.dir }}/${{ steps.out.outputs.dir }}
 
   deploy:
-    name: Deploy to Raspberry Pi
     needs: ci
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
@@ -88,6 +108,20 @@ jobs:
       RELEASE_TGZ: frontend_${{ github.sha }}.tgz
     steps:
       - uses: actions/checkout@v4
+
+      - id: loc
+        run: |
+          set -euo pipefail
+          CANDIDATES=("frontend" "apps/frontend" "packages/frontend")
+          DIR=""
+          for d in "${CANDIDATES[@]}"; do
+            if [ -d "$d" ] && [ -f "$d/package.json" ]; then DIR="$d"; break; fi
+          done
+          if [ -z "$DIR" ]; then
+            DIR=$(find . -maxdepth 3 -type f -name package.json -printf '%h\n' | grep -E '/frontend$|^./frontend$' | head -n1 || true)
+          fi
+          [ -n "$DIR" ] || { echo "❌ frontend directory not found"; exit 2; }
+          echo "dir=${DIR#./}" >> "$GITHUB_OUTPUT"
 
       - uses: actions/setup-node@v4
         with:
@@ -102,31 +136,34 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ~/.npm
-          key: npm-${{ runner.os }}-${{ hashFiles(format('{0}/package-lock.json', env.WORKDIR)) }}
+          key: npm-${{ runner.os }}-${{ hashFiles(format('{0}/package-lock.json', steps.loc.outputs.dir)) }}
           restore-keys: |
             npm-${{ runner.os }}-
 
       - name: Assert lockfile
         run: |
-          test -f "${{ env.WORKDIR }}/package-lock.json" || { echo "frontend/package-lock.json not found"; exit 2; }
+          test -f "${{ steps.loc.outputs.dir }}/package-lock.json" || { echo "❌ ${{ steps.loc.outputs.dir }}/package-lock.json not found"; exit 2; }
 
-      - working-directory: ${{ env.WORKDIR }}
+      - name: Install + Build
+        working-directory: ${{ steps.loc.outputs.dir }}
         run: |
           npm ci
           if [ -f angular.json ]; then
             DEFAULT_PROJECT=$(jq -r '.defaultProject // empty' angular.json)
             [ -z "$DEFAULT_PROJECT" -o "$DEFAULT_PROJECT" = "null" ] && DEFAULT_PROJECT=$(jq -r '.projects | keys[0]' angular.json)
             OUT=$(jq -r --arg p "$DEFAULT_PROJECT" '.projects[$p].architect.build.options.outputPath // .projects[$p].targets.build.options.outputPath // "dist"' angular.json)
-            echo "OUT_DIR=$OUT" >> $GITHUB_ENV
+            echo "OUT_DIR=$OUT" >> "$GITHUB_ENV"
             npm run build || npx ng build --configuration production
           else
-            echo "OUT_DIR=build" >> $GITHUB_ENV
+            echo "OUT_DIR=build" >> "$GITHUB_ENV"
             npm run build
           fi
 
-      - run: tar -C ${{ env.WORKDIR }} -czf ${{ env.RELEASE_TGZ }} "$OUT_DIR"
+      - name: Pack
+        run: tar -C "${{ steps.loc.outputs.dir }}" -czf "${{ env.RELEASE_TGZ }}" "$OUT_DIR"
 
-      - uses: appleboy/scp-action@v0.1.7
+      - name: Copy to Pi
+        uses: appleboy/scp-action@v0.1.7
         with:
           host: ${{ secrets.PI_HOST }}
           username: ${{ secrets.PI_USER }}
@@ -135,13 +172,17 @@ jobs:
           source: "${{ env.RELEASE_TGZ }}"
           target: "/tmp/${{ env.RELEASE_TGZ }}"
 
-      - uses: appleboy/ssh-action@v1.2.0
+      - name: Atomic switch
+        uses: appleboy/ssh-action@v1.2.0
         with:
           host: ${{ secrets.PI_HOST }}
           username: ${{ secrets.PI_USER }}
           key: ${{ secrets.PI_SSH_KEY }}
           port: ${{ secrets.PI_SSH_PORT || 22 }}
           script_stop: true
+        env:
+          GITHUB_SHA: ${{ github.sha }}
+            with:
           script: |
             set -euo pipefail
             ROOT="/srv/www/frontend"
@@ -159,7 +200,8 @@ jobs:
             ls -1dt "$RELEASES"/* | tail -n +6 | xargs -r rm -rf
             sudo systemctl reload nginx || true
 
-      - if: always()
+      - name: Notify
+        if: always()
         run: |
           curl -fsS -X POST "$WEBHOOK_URL" \
             -H "Content-Type: application/json" \
