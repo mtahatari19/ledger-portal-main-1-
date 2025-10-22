@@ -1,0 +1,20 @@
+<h3 ledger-portal-bottom-sheet-dialog-title i18n="عنوان اطلاعیه" class="!font-medium">اطلاعیه</h3>
+<div class="text-center">
+  <img
+    [src]="bottomSheetDialogData.value.icon"
+    alt="تصویر پیغام اطلاعیه"
+    i18n-alt="توضیحات تصویر پیغام اطلاعیه که در بالای متن اطلاعیه نمایش داده میشود"
+    class="w-40 mx-auto" />
+  <h3 class="!font-medium text-foreground/80 !mt-1">{{ bottomSheetDialogData.value.title }}</h3>
+  <p class="font-normal text-foreground/60 leading-5">{{ bottomSheetDialogData.value.description }}</p>
+  <button
+    cdkFocusInitial
+    mat-flat-button
+    color="primary"
+    class="w-full !mt-5 mb-2"
+    #alertDialogBtn="matButton"
+    [autofocus]="alertDialogBtn.focus()"
+    (click)="alertDialogOnAction()">
+    {{ bottomSheetDialogData.value.buttonTitle }}
+  </button>
+</div>

@@ -1,0 +1,20 @@
+{
+  "name": "shared-ui-widget-header",
+  "$schema": "../../../../node_modules/nx/schemas/project-schema.json",
+  "projectType": "library",
+  "sourceRoot": "libs/shared/ui/widget-header/src",
+  "prefix": "ledger-portal",
+  "tags": ["shared", "ui"],
+  "targets": {
+    "test": {
+      "executor": "@nx/jest:jest",
+      "outputs": ["{workspaceRoot}/coverage/libs/shared/ui/widget-header"],
+      "options": {
+        "jestConfig": "libs/shared/ui/widget-header/jest.config.ts"
+      }
+    },
+    "lint": {
+      "executor": "@nx/eslint:lint"
+    }
+  }
+}

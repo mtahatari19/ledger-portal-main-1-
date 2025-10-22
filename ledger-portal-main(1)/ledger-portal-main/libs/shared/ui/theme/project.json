@@ -1,0 +1,20 @@
+{
+  "name": "shared-ui-theme",
+  "$schema": "../../../../node_modules/nx/schemas/project-schema.json",
+  "projectType": "library",
+  "sourceRoot": "libs/shared/ui/theme/src",
+  "prefix": "ledger-portal",
+  "tags": [],
+  "targets": {
+    "test": {
+      "executor": "@nx/jest:jest",
+      "outputs": ["{workspaceRoot}/coverage/libs/shared/ui/theme"],
+      "options": {
+        "jestConfig": "libs/shared/ui/theme/jest.config.ts"
+      }
+    },
+    "lint": {
+      "executor": "@nx/eslint:lint"
+    }
+  }
+}

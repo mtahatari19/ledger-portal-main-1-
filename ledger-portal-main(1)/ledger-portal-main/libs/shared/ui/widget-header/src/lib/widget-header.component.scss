@@ -1,0 +1,7 @@
+:host {
+  @apply max-sm:fixed max-sm:inset-x-0 max-sm:top-0 max-sm:z-10;
+}
+
+.mat-mdc-card-avatar {
+  @apply mb-0 #{!important};
+}

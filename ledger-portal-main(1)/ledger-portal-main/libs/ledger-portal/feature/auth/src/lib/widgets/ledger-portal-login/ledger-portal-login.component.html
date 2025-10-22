@@ -1,0 +1,144 @@
+<div class="flex flex-col items-center max-sm:h-full max-sm:pb-8">
+  <mat-icon svgIcon="gl-logo"   class="!w-[48px] !h-[48px]  rounded-md" />
+  <h3 class="!mt-6 text-center  max-sm:!mb-2" i18n="عنوان صفحه لاگین ledger-portal">به سامانه مدیریت متمرکز دفترکل خوش آمدید.</h3>
+  <div class="mt-10 w-full flex-1">
+    @switch (view) {
+      @case ('login') {
+        <ng-container [ngTemplateOutlet]="loginTemplate" />
+      }
+      @case ('securityAnswer') {
+        <ng-container [ngTemplateOutlet]="securityAnswerTemplate" />
+      }
+    }
+  </div>
+</div>
+
+<!-- Login template -->
+<ng-template #loginTemplate>
+  <form class="flex h-full flex-col" [formGroup]="loginForm" (ngSubmit)="login()" ledgerPortalFocusFirstInvalidControl>
+    <div class="flex flex-1 flex-col">
+      <mat-form-field>
+        <mat-label i18n="لیبل تکست باکس نام کاربری در صفحه لاگین">نام کاربری</mat-label>
+        <input #usernameInput matInput formControlName="username" />
+        <mat-error>
+          <ledger-portal-error-message [input]="loginForm.get('username')"></ledger-portal-error-message>
+        </mat-error>
+      </mat-form-field>
+      <mat-form-field>
+        <mat-label i18n="لیبل تکست باکس رمز عبور در صفحه لاگین">رمز عبور</mat-label>
+        <input
+          class="ltr text-end"
+          matInput
+          [type]="showPassword ? 'text' : 'password'"
+          formControlName="password"
+          autocomplete="current-password" />
+        <button
+          type="button"
+          mat-icon-button
+          matSuffix
+          (click)="showPassword = !showPassword"
+          [attr.aria-pressed]="showPassword"
+          class="ltr"
+          aria-label="نمایش رمز عبور"
+          i18n-aria-label="عنوان دکمه نمایش/مخفی کردن رمز عبور در تکست باکس رمز عبور">
+          <mat-icon ledgerPortalSvgIconType="fill" [svgIcon]="showPassword ? 'eye' : 'eye-slash'" />
+        </button>
+        <mat-error>
+          <ledger-portal-error-message [input]="loginForm.get('password')" />
+        </mat-error>
+      </mat-form-field>
+      <div class="flex items-center justify-center">
+        
+      </div>
+      <div class="flex items-center justify-between gap-4">
+        <button
+          mat-flat-button
+          color="primary"
+          class="w-full"
+          i18n="عنوان دکمه تایید نام کاربری و کلمه عبور برای ورود به ledger-portal"
+          [ledgerPortalOverlaySpinner]="loading$()">
+          ورود
+        </button>
+        <button mat-stroked-button color="primary" class="w-full">
+          فراموشی نام کاربری/رمز عبور
+        </button>
+      </div>
+    </div>
+  </form>
+</ng-template>
+
+<ng-template #securityAnswerTemplate>
+  @if (twoFactorData$(); as twoFactor) {
+    <div class="mb-8 flex flex-nowrap gap-2 rounded-lg bg-green-100 p-4 font-medium text-green-800">
+      <mat-icon ledgerPortalSvgIconType="fill" svgIcon="info-circle" />
+      @if (twoFactor.method === 'USE_SMS') {
+        <div i18n="پیغامی که پس از درخواست ورود به ledger-portal در صفحه لاگین نمایش داده می‌شود (وقتی پیامک فعال است)">
+          رمز یکبار مصرف 5 رقمی که به شماره موبایل‌تون
+          <span class="ltr inline-block">{{ twoFactor.device }}</span>
+          پیامک شده رو وارد کنین
+        </div>
+      } @else if (twoFactor.method === 'USE_TOTP') {
+        <div i18n="پیغامی که پس از درخواست ورود به ledger-portal در صفحه لاگین نمایش داده می‌شود (وقتی ledger-portal بان فعال است)">
+          شناسه‌ی تایید رو که از طریق ledger-portal‌بان دریافت کردین وارد کنین
+        </div>
+      }
+    </div>
+    <form
+      [formGroup]="securityAnswerForm"
+      (ngSubmit)="completeLogin()"
+      class="flex flex-col"
+      ledgerPortalFocusFirstInvalidControl>
+      <mat-form-field>
+        <mat-label i18n="لیبل تکت باکس رمز یکبار مصرف">رمز یکبار مصرف</mat-label>
+        <input
+          #oneTimeOtpInput
+          autofocus
+          matInput
+          ledgerPortalReplaceNonEnglishDigits
+          formControlName="answer"
+          inputmode="numeric"
+          pattern="\d*"
+          autocomplete="one-time-code"
+          class="ltr placeholder:text-start"
+          placeholder="رمز یکبار مصرف ۵ رقمی"
+          i18n-placeholder="متن کمرنگ تکس باکس رمز یکبار مصرف که زمانی که خالی است نمایش داده می شود"
+          [maxLength]="MAX_SECURITY_ANSWER_LENGTH" />
+        <mat-error>
+          <ledger-portal-error-message [input]="securityAnswerForm.get('answer')" [additionalCases]="additionalValidationCases">
+          </ledger-portal-error-message>
+        </mat-error>
+      </mat-form-field>
+      <!-- Timer -->
+      @if (twoFactor.method === 'USE_SMS' && twoFactor.timeout !== undefined) {
+        @if (twoFactor.timeout > 0) {
+          <div class="flex items-start justify-end">
+            <span i18n="عنوان زمان باقیمانده برای ورود رمز یکبارمصرف"> زمان باقیمانده</span>:
+            <span class="ms-1 text-blue-600" i18n="ثانیه باقیمانده">{{ twoFactor.timeout }} ثانیه</span>
+          </div>
+        } @else {
+          <div class="flex items-start justify-end">
+            <span
+              role="button"
+              class="text-blue-600 underline hover:text-blue-900"
+              i18n="عنوان لینک ارسال دوباره‌ی رمز یکبار مصرف"
+              (click)="login()">
+              ارسال دوباره‌ی رمز یکبار مصرف
+            </span>
+          </div>
+        }
+      }
+      <button
+        mat-flat-button
+        color="primary"
+        class="!mb-1 !mt-5"
+        i18n="عنوان دکمه تایید رمز یکبارمصرف"
+        [ledgerPortalOverlaySpinner]="loading$()">
+        تایید
+      </button>
+      <button type="button" mat-button color="primary" (click)="initializeAuth()">
+        <mat-icon svgIcon="arrow-left" ledgerPortalSvgIconType="fill" class="mat-icon-rtl-mirror" />
+        <span i18n="عنوان دکمه بازگشت به صفحه ورود نام کاربری و دکلمه عبور">بازگشت</span>
+      </button>
+    </form>
+  }
+</ng-template>

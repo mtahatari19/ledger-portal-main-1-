@@ -1,0 +1,5 @@
+mat-list-option {
+  &.bordered {
+    @apply rounded border border-solid border-foreground/40;
+  }
+}

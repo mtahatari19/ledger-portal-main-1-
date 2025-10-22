@@ -1,0 +1,15 @@
+@use '../functions/color' as color;
+
+$font-family-roboto: 'Roboto', sans-serif;
+$font-family-iransans: 'IRANSans', sans-serif;
+$font-family-iransans-fa: 'IRANSansFaNum', sans-serif;
+
+$path-to-images: '^./assets/images';
+$path-to-fonts: '^./assets/fonts';
+
+:root {
+  --mobile-navigation-height-size: 3.5rem;
+  --key-value-grid-row-min-height: 48px;
+  --ledger-portal-lottie-width: 3rem;
+  --ledger-portal-lottie-height: 3rem;
+}

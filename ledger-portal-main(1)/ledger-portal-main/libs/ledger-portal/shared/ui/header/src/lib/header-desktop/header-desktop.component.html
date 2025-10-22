@@ -1,0 +1,129 @@
+<mat-toolbar class="border-foreground/10 border-b border-none !bg-transparent">
+  <div class="!w-full lg:container">
+    <div class="flex items-center justify-center">
+      <nav>
+        @for (link of links; track link.id) {
+          @if (link.isExternal) {
+            <a mat-button target="_blank">
+              {{ link.title }}
+            </a>
+          } @else {
+            <a mat-button routerLinkActive="active">
+              {{ link.title }}
+            </a>
+          }
+        }
+      </nav>
+      <div class="flex-1"></div>
+      <button
+        mat-icon-button
+        color="primary"
+        aria-label="جست‌وجو"
+        i18n-aria-label="دکمه جست‌وجو در خدمات ledger-portal و مخاطبین صفحه میزکار"
+        (click)="toggleDesktopSearch()">
+        <mat-icon svgIcon="search-normal"  ledgerPortalSvgIconType="stroke" />
+      </button>
+      <button mat-icon-button color="primary" [matMenuTriggerFor]="profileMenu">
+        <mat-icon svgIcon="user-outlined" ledgerPortalSvgIconType="stroke" />
+      </button>
+      <mat-menu #profileMenu="matMenu" class="retail-header-desktop-menu">
+        <mat-accordion class="un-styled">
+          <!--          <ng-container [ngTemplateOutlet]="languageExpansionPanel" />-->
+          <ng-container [ngTemplateOutlet]="colorPaletteExpansionPanel" />
+        </mat-accordion>
+        <mat-divider />
+        <button mat-menu-item (click)="logout()">
+          <mat-icon ledgerPortalSvgIconType="fill" svgIcon="logout" class="opacity-60" />
+          <span i18n="عنوان دکمه خروج در منوی پروفایل بک افیس">خروج</span>
+        </button>
+      </mat-menu>
+    </div>
+  </div>
+</mat-toolbar>
+<!--<ng-template #languageExpansionPanel>-->
+<!--  @if (language$ | async; as currentLanguage) {-->
+<!--    <mat-expansion-panel class="mat-elevation-z0">-->
+<!--      <mat-expansion-panel-header-->
+<!--        class="!px-4"-->
+<!--        expandedHeight="48px"-->
+<!--        collapsedHeight="48px"-->
+<!--        (click)="$event.stopPropagation()">-->
+<!--        <mat-panel-title>-->
+<!--          <span i18n="@@language">زبان</span>-->
+<!--          <small class="mx-1 opacity-75">({{ currentLanguage.name }})</small>-->
+<!--        </mat-panel-title>-->
+<!--      </mat-expansion-panel-header>-->
+<!--      <mat-selection-list-->
+<!--        #localeSelectionList-->
+<!--        [multiple]="false"-->
+<!--        (selectionChange)="changeLanguage(localeSelectionList.selectedOptions.selected![0].value)">-->
+<!--        @for (language of languages; track language) {-->
+<!--          <mat-list-option [value]="language.code" [selected]="language.code === currentLanguage.code">-->
+<!--            {{ language.name }}-->
+<!--          </mat-list-option>-->
+<!--        }-->
+<!--      </mat-selection-list>-->
+<!--    </mat-expansion-panel>-->
+<!--  }-->
+<!--</ng-template>-->
+
+<ng-template #colorPaletteExpansionPanel>
+  @if (colorPalette$ | async; as currentColorPalette) {
+    <mat-expansion-panel class="mat-elevation-z0">
+      <mat-expansion-panel-header
+        class="!px-4"
+        expandedHeight="48px"
+        collapsedHeight="48px"
+        (click)="$event.stopPropagation()">
+        <mat-panel-title>
+          <span i18n="@@theme">قالب</span>
+          <small class="mx-1 opacity-75">
+            ({{ currentColorPalette.title }}
+            @switch (colorScheme$ | async) {
+              @case ('light') {
+                <span i18n="@@dayMode">حالت روز</span>
+              }
+              @case ('dark') {
+                <span i18n="@@nightMode">حالت شب</span>
+              }
+            }
+            )
+          </small>
+        </mat-panel-title>
+      </mat-expansion-panel-header>
+
+      <mat-selection-list
+        #colorPaletteSelectionList
+        [multiple]="false"
+        (selectionChange)="changeColorPalette(colorPaletteSelectionList.selectedOptions.selected![0].value)">
+        @for (palette of colorPalettes; track palette.name) {
+          <mat-list-option
+            (click)="changeColorPalette(palette.name)"
+            [selected]="palette.name === currentColorPalette.name">
+            <span matListItemTitle>{{ palette.title }}</span>
+            <span
+              matListItemIcon
+              class="!h-5 !w-5 !rounded-full !p-0"
+              [style.background]="calculatePaletteCircleStyle(palette.primary, palette.accent)">
+            </span>
+          </mat-list-option>
+        }
+      </mat-selection-list>
+
+      <mat-divider></mat-divider>
+
+      <div class="mt-4 flex justify-between px-4 pb-2">
+        <div class="!text-foreground flex items-center">
+          <mat-icon svgIcon="mask" />
+          <span class="!text-foreground mx-1" i18n="عنوان حالت شب برای تغییر تم در هدر">حالت شب</span>
+        </div>
+        <ledger-portal-toggle-color-scheme
+          [hideIcons]="true"
+          [checked]="(colorScheme$ | async) === 'dark'"
+          (click)="$event.stopPropagation()"
+          (toggleChange)="toggleDarkMode($event.checked)">
+        </ledger-portal-toggle-color-scheme>
+      </div>
+    </mat-expansion-panel>
+  }
+</ng-template>

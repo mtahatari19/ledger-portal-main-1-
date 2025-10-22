@@ -1,0 +1,107 @@
+@use '../../base/base/base' as *;
+
+ledger-portal-login-page {
+  display: block;
+  height: 100%;
+
+  // Two-column layout container
+  .flex.flex-wrap.flex-1 {
+    height: 100%;
+    
+    // Left column - Login form section
+    > div:first-child {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background-color: white;
+      min-height: 100vh;
+    }
+    
+    // Right column - Image section (max 430px)
+    > div:last-child {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      max-width: 430px;
+      width: 430px;
+      
+      .cover-image {
+        display: flex;
+        height: 100%;
+        width: 100%;
+        align-items: center;
+        justify-content: center;
+        background-size: cover;
+        background-repeat: no-repeat;
+        background-image: url(#{$path-to-images}/login-page.svg) !important;
+        min-height: 100vh;
+        
+        svg {
+          height: auto;
+          width: auto;
+        }
+      }
+    }
+  }
+
+  // Override styles for buttons and inputs with 16px border radius
+  // Input field overrides
+  mat-form-field {
+    .mat-mdc-text-field-wrapper {
+      border-radius: 16px !important;
+    }
+    
+    .mat-mdc-form-field-outline {
+      border-radius: 16px !important;
+    }
+    
+    .mat-mdc-form-field-focus-overlay {
+      border-radius: 16px !important;
+    }
+    
+    .mat-mdc-form-field-infix {
+      border-radius: 16px !important;
+    }
+  }
+
+  // Button overrides
+  button[mat-flat-button],
+  button[mat-raised-button],
+  button[mat-button],
+  button[mat-stroked-button] {
+    border-radius: 16px !important;
+  }
+
+  // Icon button overrides
+  button[mat-icon-button] {
+    border-radius: 16px !important;
+  }
+
+  // FAB button overrides
+  button[mat-fab],
+  button[mat-mini-fab] {
+    border-radius: 16px !important;
+  }
+
+  // Mobile responsive - stack vertically
+  @media (max-width: 768px) {
+    .flex.flex-wrap.flex-1 {
+      flex-direction: column;
+      
+      > div:first-child {
+        width: 100%;
+        min-height: 100vh;
+      }
+      
+      > div:last-child {
+        width: 100%;
+        max-width: none;
+        
+        .cover-image {
+          min-height: 50vh;
+        }
+      }
+    }
+  }
+}

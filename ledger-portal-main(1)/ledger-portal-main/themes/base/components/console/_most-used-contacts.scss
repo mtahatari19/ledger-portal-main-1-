@@ -1,0 +1,34 @@
+@use '../../base/base' as *;
+
+ledger-portal-most-used-contacts {
+  @apply relative block;
+  -webkit-tap-highlight-color: transparent;
+
+  .scroll-button {
+    @apply bg-foreground text-background absolute flex content-center items-center py-6 opacity-25 transition-opacity hover:opacity-50 #{!important};
+    top: 50%;
+    transform: translateY(-50%);
+  }
+
+  .empty-state {
+    background-image: url(#{$path-to-images}/most-used-contacts/no-result.svg);
+    @apply bg-center bg-no-repeat py-10;
+  }
+
+  .contacts-container {
+    @apply h-28;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+
+    &::-webkit-scrollbar {
+      @apply hidden;
+    }
+
+    .cdk-virtual-scroll-content-wrapper {
+      @apply -mb-4 mt-4 flex min-h-0 scroll-px-4 gap-2 px-4 pb-4 #{!important};
+    }
+  }
+}
+
+.most-used-contacts-details-dialog-panel {
+}

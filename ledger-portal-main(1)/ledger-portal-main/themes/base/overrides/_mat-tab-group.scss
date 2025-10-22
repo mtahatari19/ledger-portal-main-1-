@@ -1,0 +1,13 @@
+mat-tab-group {
+  &.mat-tab-group-bottom-border {
+    .mat-mdc-tab-label-container {
+      @apply border-foreground/10 border-b border-solid #{!important};
+    }
+  }
+
+  &.header-shadow {
+    mat-tab-header {
+      @apply shadow-sm;
+    }
+  }
+}

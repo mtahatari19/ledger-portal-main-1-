@@ -1,0 +1,9 @@
+@use '../../base/base' as *;
+
+ledger-portal-hidden-account-dialog {
+  .hidden-account-card {
+    @apply border-foreground/5 bg-foreground/5 overflow-hidden rounded-xl border border-solid shadow-none #{!important};
+    background-image: url(#{$path-to-images}/account/hidden-account.svg) !important;
+    background-size: cover;
+  }
+}

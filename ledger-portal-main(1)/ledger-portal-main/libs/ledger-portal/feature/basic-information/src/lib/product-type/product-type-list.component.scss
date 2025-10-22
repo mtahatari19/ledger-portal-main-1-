@@ -1,0 +1,26 @@
+.min-w-full th,
+.min-w-full td {
+  text-align: right;
+}
+
+// Table header style alignment with Tailwind utilities
+:host ::ng-deep .mat-mdc-table {
+  width: 100%;
+}
+
+// Row hover subtle effect
+tr.mat-mdc-row:hover {
+  transition: background-color 120ms ease-in-out;
+}
+
+// Make cells comfortable
+td.mat-mdc-cell, th.mat-mdc-header-cell {
+  vertical-align: middle;
+}
+
+// Table borders (no internal row dividers)
+:host ::ng-deep .mat-mdc-table {
+  border-collapse: collapse;
+}
+
+

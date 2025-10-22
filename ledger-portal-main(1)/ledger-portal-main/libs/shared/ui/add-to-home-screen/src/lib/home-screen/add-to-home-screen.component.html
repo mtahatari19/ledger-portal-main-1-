@@ -1,0 +1,45 @@
+<div class="h-full" autosize>
+  <div class="flex flex-col">
+    <div class="mb-6 flex h-full flex-col items-center justify-between px-4">
+      <div>
+        <ledger-portal-logo [width]="103" [height]="40" class="mb-4 mt-8 flex justify-center" />
+        <p class="text-base font-medium" i18n="عنوان صفحه اضافه کردن به خانه">
+          وب‌اپلیکیشن ledger-portal رو به صفحه اصلی اضافه کن!
+        </p>
+        <div class="flex justify-center">
+          <img src="./assets/images/decoration/ledger-portal-add-to-home-screen.svg" alt="" />
+        </div>
+      </div>
+
+      <ol class="mb-16 mt-10 w-full list-outside list-decimal ps-4">
+        <li class="mb-4">
+          <div class="flex justify-between">
+            <span class="text-sm font-normal" i18n>دکمه‌ی Share رو در نوار پایین بزن</span>
+            <mat-icon svgIcon="share-outline" ledgerPortalSvgIconType="stroke" class="text-foreground shrink-0" />
+          </div>
+        </li>
+        <li class="mb-4">
+          <div class="flex justify-between">
+            <span class="text-sm font-normal" i18n> گزینه‌ی Add to Home Screen رو انتخاب کن. </span>
+            <mat-icon svgIcon="add-to-home-screen" ledgerPortalSvgIconType="stroke" class="text-foreground shrink-0" />
+          </div>
+        </li>
+        <li class="mb-4">
+          <div class="flex justify-between">
+            <span class="text-sm font-normal" i18n>در قسمت بالا‌ روی Add بزن.</span>
+            <mat-icon svgIcon="add-text" ledgerPortalSvgIconType="fill" class="text-foreground shrink-0" />
+          </div>
+        </li>
+      </ol>
+
+      <button
+        class="w-full"
+        mat-flat-button
+        color="primary"
+        i18n="عنوان دکمه متوجه شدم در اضافه کردن به خانه"
+        (click)="close()">
+        متوجه شدم
+      </button>
+    </div>
+  </div>
+</div>

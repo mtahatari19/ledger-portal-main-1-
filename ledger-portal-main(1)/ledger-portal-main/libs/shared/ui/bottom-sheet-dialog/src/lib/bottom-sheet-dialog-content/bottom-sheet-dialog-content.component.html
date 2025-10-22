@@ -1,0 +1,11 @@
+@if (isHandsetScreen$ | async) {
+  <ng-container [ngTemplateOutlet]="content" />
+}
+@if ((isHandsetScreen$ | async) === false) {
+  <mat-dialog-content>
+    <ng-container [ngTemplateOutlet]="content" />
+  </mat-dialog-content>
+}
+<ng-template #content>
+  <ng-content />
+</ng-template>

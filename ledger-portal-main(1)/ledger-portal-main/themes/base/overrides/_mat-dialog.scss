@@ -1,0 +1,28 @@
+@use '@angular/material' as mat;
+@use '../vendors/material/material' as *;
+
+.mat-mdc-full-screen-dialog {
+  @apply m-0 h-full max-h-[none] w-full max-w-full rounded-none #{!important};
+
+  mat-dialog-container {
+    @apply p-0 #{!important};
+
+    mat-toolbar {
+      @apply flex items-center gap-x-4 px-4 py-3;
+
+      .mat-mdc-dialog-title {
+        @apply flex flex-1 items-center p-0 text-center;
+
+        font-size: mat.m2-font-size($bm-typography-fa, subtitle-2);
+      }
+    }
+
+    mat-dialog-content {
+      @apply m-0 max-h-[none] px-4;
+    }
+
+    mat-dialog-actions {
+      @apply mx-0 mt-4 px-4;
+    }
+  }
+}

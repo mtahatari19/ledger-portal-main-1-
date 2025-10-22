@@ -1,0 +1,8 @@
+.not-found-container {
+  @apply container h-full;
+  padding-top: var(--mat-toolbar-mobile-height);
+
+  @screen md {
+    padding-top: calc(var(--mat-toolbar-standard-height) + 24px);
+  }
+}

@@ -1,0 +1,126 @@
+<div class="min-h-screen p-6">
+  <div class="mb-8">
+    <h2 class="!mb-8 text-2xl font-bold">
+      {{ getPageTitle() }}
+    </h2>
+    <ledger-portal-shared-ui-breadcrumb />
+    <h3 class="!mt-8">
+      مشخصات گروه حساب را وارد کنید.
+    </h3>
+  </div>
+
+  <div>
+    <form [formGroup]="accountGroupForm" (ngSubmit)="onSubmit()" class="space-y-6">
+      <div class="grid grid-cols-1 gap-6 md:grid-cols-2">
+        <mat-form-field appearance="outline" class="w-full">
+          <mat-label>کد گروه حساب</mat-label>
+          <input
+            matInput
+            formControlName="code"
+            type="text"
+            placeholder="کد گروه حساب را وارد کنید"
+            [class.error]="isFieldInvalid('code')"
+          />
+          <mat-error *ngIf="isFieldInvalid('code')">
+            {{ getFieldError('code') }}
+          </mat-error>
+        </mat-form-field>
+
+        <mat-form-field appearance="outline" class="w-full">
+          <mat-label>نام</mat-label>
+          <input
+            matInput
+            formControlName="name"
+            type="text"
+            placeholder="نام گروه حساب را وارد کنید"
+            [class.error]="isFieldInvalid('name')"
+          />
+          <mat-error *ngIf="isFieldInvalid('name')">
+            {{ getFieldError('name') }}
+          </mat-error>
+        </mat-form-field>
+      </div>
+
+      <div class="grid grid-cols-1 gap-6 md:grid-cols-2">
+        <mat-form-field appearance="outline" class="w-full">
+          <mat-label>نام (انگلیسی)</mat-label>
+          <input
+            matInput
+            formControlName="englishName"
+            type="text"
+            placeholder="نام انگلیسی گروه حساب را وارد کنید"
+            [class.error]="isFieldInvalid('englishName')"
+          />
+          <mat-error *ngIf="isFieldInvalid('englishName')">
+            {{ getFieldError('englishName') }}
+          </mat-error>
+        </mat-form-field>
+
+        <!-- Group Type -->
+        <mat-form-field appearance="outline" class="w-full">
+          <mat-label>نوع گروه</mat-label>
+          <mat-select formControlName="groupType" [class.error]="isFieldInvalid('groupType')">
+            <mat-option *ngFor="let type of groupTypes" [value]="type.value">
+              {{ type.label }}
+            </mat-option>
+          </mat-select>
+          <mat-error *ngIf="isFieldInvalid('groupType')">
+            {{ getFieldError('groupType') }}
+          </mat-error>
+        </mat-form-field>
+      </div>
+
+      <!-- Row 3: Status and Description -->
+      <div class="grid grid-cols-1 gap-6 md:grid-cols-2">
+        <!-- Status -->
+        <mat-form-field appearance="outline" class="w-full h-[40px]">
+          <mat-label>وضعیت</mat-label>
+          <mat-select formControlName="status" [class.error]="isFieldInvalid('status')">
+            <mat-option *ngFor="let status of statuses" [value]="status.value">
+              {{ status.label }}
+            </mat-option>
+          </mat-select>
+          <mat-error *ngIf="isFieldInvalid('status')">
+            {{ getFieldError('status') }}
+          </mat-error>
+        </mat-form-field>
+
+        <!-- Description -->
+        <mat-form-field appearance="outline" class="w-full">
+          <mat-label>توضیحات</mat-label>
+          <textarea
+            matInput
+            formControlName="description"
+            rows="4"
+            placeholder="توضیحات گروه حساب را وارد کنید"
+            [class.error]="isFieldInvalid('description')"
+          ></textarea>
+          <mat-error *ngIf="isFieldInvalid('description')">
+            {{ getFieldError('description') }}
+          </mat-error>
+        </mat-form-field>
+      </div>
+
+      <!-- Action Buttons -->
+      <div class="flex justify-end space-x-4 space-x-reverse pt-6">
+        <button
+          mat-stroked-button
+          type="button"
+          (click)="goBack()"
+          class="px-8 py-2"
+        >
+          بازگشت
+        </button>
+        <button
+          mat-raised-button
+          type="submit"
+          color="primary"
+          class="px-8 py-2"
+          [disabled]="accountGroupForm.invalid"
+        >
+          {{ getSubmitButtonText() }}
+        </button>
+      </div>
+    </form>
+  </div>
+</div>

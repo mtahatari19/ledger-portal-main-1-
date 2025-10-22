@@ -1,0 +1,19 @@
+{
+  "name": "shared-util-account-validator",
+  "$schema": "..\\..\\..\\..\\node_modules\\nx\\schemas\\project-schema.json",
+  "sourceRoot": "libs/shared/util/account-validator/src",
+  "projectType": "library",
+  "tags": [],
+  "targets": {
+    "lint": {
+      "executor": "@nx/eslint:lint"
+    },
+    "test": {
+      "executor": "@nx/jest:jest",
+      "outputs": ["{workspaceRoot}/coverage/libs/shared/util/account-validator"],
+      "options": {
+        "jestConfig": "libs/shared/util/account-validator/jest.config.ts"
+      }
+    }
+  }
+}

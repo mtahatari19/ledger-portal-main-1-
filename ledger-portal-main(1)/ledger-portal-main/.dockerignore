@@ -1,0 +1,64 @@
+# Dependencies
+node_modules
+npm-debug.log*
+yarn-error.log*
+
+# Build outputs
+dist
+tmp
+out-tsc
+bazel-out
+
+# IDE
+.idea
+.vscode
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Tests
+coverage
+*.lcov
+.nyc_output
+
+# e2e
+e2e/*.js
+e2e/*.map
+
+# System Files
+.DS_Store
+Thumbs.db
+
+# Git
+.git
+.gitignore
+
+# Documentation
+README.md
+docs
+*.md
+
+# Misc
+.angular
+.sass-cache
+connect.lock
+libpeerconnection.log
+testem.log
+typings
+
+# Environment files (these should be injected at runtime)
+.env
+.env.*
+
+# Nx cache
+.nx
+
+# Docker files themselves
+Dockerfile
+.dockerignore
+docker-compose.yml
+docker-compose.*.yml

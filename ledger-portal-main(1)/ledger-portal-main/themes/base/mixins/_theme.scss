@@ -1,0 +1,98 @@
+@use 'sass:map';
+@use 'sass:string';
+@use '@angular/material' as mat;
+@use '../functions/contrast' as contrast;
+@use '../functions/color' as color;
+@use '../vendors/material/util' as util;
+
+@mixin define-general-css-variables($palette, $name) {
+  @if $palette {
+    @each $shade, $color in $palette {
+      --#{$name}-color-#{$shade}: #{color.destruct-color($color)};
+      --#{$name}-color-#{$shade}-contrast: #{contrast.contrast-tone($color)};
+    }
+  }
+}
+
+@mixin define-mat-css-variables($theme) {
+  $background: map.get(mat.m2-get-color-config($theme), 'background');
+  $foreground: map.get(mat.m2-get-color-config($theme), 'foreground');
+
+  --foreground-color: #{color.destruct-color(map.get($foreground, base))};
+  --background-color: #{color.destruct-color(map.get($background, background))};
+  --card-background-color: #{color.destruct-color(map.get($background, card))};
+  --divider-color: #{color.destruct-color(map.get($foreground, divider))};
+}
+
+@mixin define-palette($selector, $config, $is-dark) {
+  $is-root: $selector == ':root';
+
+  $primary-palette: map.get($config, 'primary');
+  $accent-palette: map.get($config, 'accent');
+  $warn-palette: map.get($config, 'warn');
+
+  $mat-light-foreground: mat.$m2-light-theme-foreground-palette;
+  $mat-light-background: map.merge(
+      mat.$m2-light-theme-background-palette,
+      (
+        app-bar: white,
+        background: #f2f4f7,
+      )
+  );
+  $mat-dark-foreground: mat.$m2-dark-theme-foreground-palette;
+  $mat-dark-background: map.merge(
+      mat.$m2-dark-theme-background-palette,
+      (
+        app-bar: #232938,
+        background: #1a1e29,
+        card: #232938,
+        dialog: #232938,
+      )
+  );
+  $mat-foreground: if($is-dark, $mat-dark-foreground, $mat-light-foreground);
+  $mat-background: if($is-dark, $mat-dark-background, $mat-light-background);
+
+  $mat-primary-palette: util.generate-material-palette($primary-palette);
+  $mat-accent-palette: util.generate-material-palette($accent-palette);
+  $mat-warn-palette: if($warn-palette, util.generate-material-palette($warn-palette), mat.$m2-red-palette);
+  $mat-theme-config: (
+    color: (
+      primary: mat.m2-define-palette($mat-primary-palette),
+      accent: mat.m2-define-palette($mat-accent-palette),
+      warn: mat.m2-define-palette($mat-warn-palette),
+    ),
+    density: -1,
+  );
+  $mat-light-theme: mat.m2-define-light-theme($mat-theme-config);
+  $mat-dark-theme: mat.m2-define-dark-theme($mat-theme-config);
+  $mat-theme: util.modify-material-theme(
+      if($is-dark, $mat-dark-theme, $mat-light-theme),
+      $mat-foreground,
+      $mat-background
+  );
+
+  @if $is-root {
+    @include mat.all-component-themes($mat-theme);
+  }
+
+  #{string.unquote($selector)} {
+    @include define-general-css-variables($primary-palette, 'primary');
+    @include define-general-css-variables($accent-palette, 'accent');
+    @include define-general-css-variables($warn-palette, 'warn');
+    @include define-mat-css-variables($mat-theme);
+
+    @if $is-root == false {
+      @include mat.all-component-colors($mat-theme);
+    }
+  }
+}
+
+@mixin define-theme($selector, $config) {
+  $config-light: map.get($config, 'light');
+  $config-dark: map.get($config, 'dark');
+  $is-root: $selector == ':root';
+  $light-selector: $selector;
+  $dark-selector: if($is-root, '', $light-selector) + '.color-scheme-dark';
+  @include define-palette($light-selector, $config-light, false);
+  @include define-palette($dark-selector, $config-dark, true);
+}

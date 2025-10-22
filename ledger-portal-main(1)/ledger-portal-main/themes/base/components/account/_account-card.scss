@@ -1,0 +1,110 @@
+@use '../../base/base' as *;
+
+ledger-portal-account-card,
+ledger-portal-currency-account-card,
+ledger-portal-shared-ui-hidden-account-card {
+  .card {
+    @apply relative h-[10rem] w-[18.5rem] overflow-hidden rounded-xl bg-cover p-4 text-white shadow-none;
+    max-width: 94vw;
+    background-position: center center;
+    background-image: var(--bg-image);
+    background-color: rgb(var(--bg-color) / var(--bg-opacity));
+
+    --bg-image: url(#{$path-to-images}/account/account-background-pattern.svg);
+    --bg-color: 13 89 143;
+    --bg-opacity: 1;
+
+    &.loan-account {
+      --bg-color: 13 68 143;
+    }
+
+    &.shortterm-account {
+      --bg-color: 18 104 183;
+    }
+
+    &.dollar-account {
+      --bg-color: 63 98 150;
+    }
+
+    &.euro-account {
+      --bg-color: 69 85 115;
+    }
+
+    &.locked {
+      @apply text-foreground/80;
+      --bg-image: url(#{$path-to-images}/account/account-inactive-background-pattern.svg);
+      --bg-color: 176 187 204;
+      --bg-opacity: 16%;
+    }
+  }
+}
+
+.ledger-portal-account-detail-dialog {
+  .account-detail-list {
+    @apply block #{!important};
+
+    div {
+      @apply flex w-full py-3;
+
+      dt {
+        @apply text-foreground/60 mat-subtitle-2 flex-1;
+        @apply font-normal #{!important};
+      }
+
+      dd {
+        @apply text-foreground/80 mat-subtitle-2 flex-1 text-end;
+      }
+    }
+  }
+}
+
+.account-setting-menu {
+  --mdc-list-list-item-leading-icon-color: theme('colors.primary.DEFAULT');
+  .mat-mdc-list-item-unscoped-content {
+    @apply flex #{!important};
+  }
+}
+
+.account-setting-description {
+  @apply bg-foreground/5 flex-1 items-start rounded-lg p-4 lg:flex #{!important};
+}
+
+ledger-portal-shared-ui-account-card-blocked-history-dialog {
+  .blocked-account-history-table {
+    tr.transaction-detail-row {
+      height: 0;
+    }
+
+    tr.transaction-row:hover {
+      @apply bg-[inherit] #{!important};
+    }
+
+    tr.transaction-row:not(.transaction-expanded-row):hover {
+      @apply bg-foreground/5 #{!important};
+    }
+
+    tr.transaction-detail-row {
+      @apply bg-foreground bg-opacity-[0.01] #{!important};
+    }
+
+    .transaction-row td {
+      border-bottom-width: 0;
+    }
+  }
+
+  .blocked-account-history-key-value-grid {
+    @apply grid sm:grid-cols-2 sm:gap-y-4;
+
+    > div {
+      @apply flex items-center;
+
+      dt {
+        @apply text-foreground/60 w-[50%];
+      }
+
+      dd {
+        @apply text-foreground/90 font-medium;
+      }
+    }
+  }
+}

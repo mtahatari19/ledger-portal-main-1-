@@ -1,0 +1,11 @@
+ledger-portal-banner {
+  @apply w-full;
+}
+
+.lottie-container
+{
+  @apply flex justify-end items-center bg-cover bg-no-repeat #{!important};
+  svg {
+    @apply w-full h-auto #{!important};
+  }
+}

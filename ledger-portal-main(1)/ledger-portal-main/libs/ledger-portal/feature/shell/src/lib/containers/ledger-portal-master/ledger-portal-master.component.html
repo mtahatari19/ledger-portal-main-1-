@@ -1,0 +1,22 @@
+<div class="flex h-full flex-col">
+  <mat-sidenav-container class="!h-full !bg-card" [autosize]="true">
+    <div class="img-header absolute h-[240px] w-full">
+      <ledger-portal-header-desktop />
+    </div>
+    <mat-sidenav
+      [mode]="'side'"
+      [fixedInViewport]="true"
+      [opened]="true"
+      [ngClass]="isExpanded ? '!w-[300px]' : '!w-[128px]'"
+      class="side-nav !bg-background !px-0">
+      <ledger-portal-back-feature-shell-side-bar
+        class="!px-0"
+        [isExpanded]="isExpanded"
+        [adminName]="adminName"
+        [adminLastName]="adminLastName" />
+    </mat-sidenav>
+    <div class="outlet-container relative top-[80px] z-10">
+      <router-outlet />
+    </div>
+  </mat-sidenav-container>
+</div>

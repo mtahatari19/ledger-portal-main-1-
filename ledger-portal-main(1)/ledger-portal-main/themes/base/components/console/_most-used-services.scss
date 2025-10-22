@@ -1,0 +1,27 @@
+ledger-portal-most-used-services {
+  -webkit-tap-highlight-color: transparent;
+}
+
+.most-used-services-dialog-overlay {
+  @apply h-full w-full max-w-full #{!important};
+}
+
+.most-used-service-card-container {
+  @apply md:bg-background relative flex flex-col items-center justify-center focus:outline-none md:h-full md:items-start md:rounded-xl md:p-5 max-sm:text-center;
+
+  .icon-container {
+    @apply bg-background text-primary flex items-center justify-center rounded-xl p-5 max-sm:relative md:p-0;
+  }
+
+  .icon {
+    @apply scale-125 transform md:scale-[1.34];
+  }
+
+  .service-name {
+    @apply mt-2;
+  }
+
+  .service-description {
+    @apply text-foreground/50 mt-2 hidden max-h-6 text-xs font-semibold md:block;
+  }
+}
