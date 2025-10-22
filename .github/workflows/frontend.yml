@@ -26,19 +26,33 @@ jobs:
         working-directory: ${{ env.WORKDIR }}
     steps:
       - uses: actions/checkout@v4
+
       - uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
-          cache: npm
-          cache-dependency-path: ${{ env.WORKDIR }}/package-lock.json
-      - run: mkdir -p "$HOME/.npm/_cacache"
-      - run: echo "NPM_CONFIG_CACHE=$HOME/.npm" >> "$GITHUB_ENV"
-      - run: |
-          [ -f package-lock.json ] || { echo "package-lock.json not found"; exit 2; }
+
+      - name: Prepare npm cache dir
+        run: |
+          mkdir -p "$HOME/.npm/_cacache"
+          echo "NPM_CONFIG_CACHE=$HOME/.npm" >> "$GITHUB_ENV"
+
+      - name: Cache npm
+        uses: actions/cache@v4
+        with:
+          path: ~/.npm
+          key: npm-${{ runner.os }}-${{ hashFiles(format('{0}/package-lock.json', env.WORKDIR)) }}
+          restore-keys: |
+            npm-${{ runner.os }}-
+
+      - name: Assert lockfile
+        run: |
+          test -f package-lock.json || { echo "package-lock.json not found"; exit 2; }
+
       - run: npm ci
       - if: github.event_name == 'pull_request'
         run: npm run lint --if-present
       - run: npm test --if-present -- --ci --reporters=default --watch=false
+
       - id: out
         run: |
           if [ -f angular.json ]; then
@@ -49,6 +63,7 @@ jobs:
             OUT="build"
           fi
           echo "dir=$OUT" >> $GITHUB_OUTPUT
+
       - run: |
           if npm run -s | grep -q "^  build"; then
             npm run build
@@ -57,6 +72,7 @@ jobs:
           fi
         env:
           CI: "true"
+
       - if: github.event_name == 'pull_request'
         uses: actions/upload-artifact@v4
         with:
@@ -72,15 +88,28 @@ jobs:
       RELEASE_TGZ: frontend_${{ github.sha }}.tgz
     steps:
       - uses: actions/checkout@v4
+
       - uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
-          cache: npm
-          cache-dependency-path: ${{ env.WORKDIR }}/package-lock.json
-      - run: mkdir -p "$HOME/.npm/_cacache"
-      - run: echo "NPM_CONFIG_CACHE=$HOME/.npm" >> "$GITHUB_ENV"
-      - run: |
-          [ -f "${{ env.WORKDIR }}/package-lock.json" ] || { echo "frontend/package-lock.json not found"; exit 2; }
+
+      - name: Prepare npm cache dir
+        run: |
+          mkdir -p "$HOME/.npm/_cacache"
+          echo "NPM_CONFIG_CACHE=$HOME/.npm" >> "$GITHUB_ENV"
+
+      - name: Cache npm
+        uses: actions/cache@v4
+        with:
+          path: ~/.npm
+          key: npm-${{ runner.os }}-${{ hashFiles(format('{0}/package-lock.json', env.WORKDIR)) }}
+          restore-keys: |
+            npm-${{ runner.os }}-
+
+      - name: Assert lockfile
+        run: |
+          test -f "${{ env.WORKDIR }}/package-lock.json" || { echo "frontend/package-lock.json not found"; exit 2; }
+
       - working-directory: ${{ env.WORKDIR }}
         run: |
           npm ci
@@ -94,7 +123,9 @@ jobs:
             echo "OUT_DIR=build" >> $GITHUB_ENV
             npm run build
           fi
+
       - run: tar -C ${{ env.WORKDIR }} -czf ${{ env.RELEASE_TGZ }} "$OUT_DIR"
+
       - uses: appleboy/scp-action@v0.1.7
         with:
           host: ${{ secrets.PI_HOST }}
@@ -103,6 +134,7 @@ jobs:
           port: ${{ secrets.PI_SSH_PORT || 22 }}
           source: "${{ env.RELEASE_TGZ }}"
           target: "/tmp/${{ env.RELEASE_TGZ }}"
+
       - uses: appleboy/ssh-action@v1.2.0
         with:
           host: ${{ secrets.PI_HOST }}
@@ -126,6 +158,7 @@ jobs:
             ln -sfn "$NEW" "$CURRENT"
             ls -1dt "$RELEASES"/* | tail -n +6 | xargs -r rm -rf
             sudo systemctl reload nginx || true
+
       - if: always()
         run: |
           curl -fsS -X POST "$WEBHOOK_URL" \
