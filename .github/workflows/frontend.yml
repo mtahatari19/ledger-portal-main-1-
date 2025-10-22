@@ -31,9 +31,10 @@ jobs:
           node-version: ${{ env.NODE_VERSION }}
           cache: npm
           cache-dependency-path: ${{ env.WORKDIR }}/package-lock.json
-      - run: mkdir -p ~/.npm
+      - run: mkdir -p "$HOME/.npm/_cacache"
+      - run: echo "NPM_CONFIG_CACHE=$HOME/.npm" >> "$GITHUB_ENV"
       - run: |
-          [ -f package-lock.json ] || { echo "❌ package-lock.json پیدا نشد"; exit 2; }
+          [ -f package-lock.json ] || { echo "package-lock.json not found"; exit 2; }
       - run: npm ci
       - if: github.event_name == 'pull_request'
         run: npm run lint --if-present
@@ -52,7 +53,7 @@ jobs:
           if npm run -s | grep -q "^  build"; then
             npm run build
           else
-            echo "No build script found" && exit 1
+            echo "No build script found"; exit 1
           fi
         env:
           CI: "true"
@@ -76,9 +77,10 @@ jobs:
           node-version: ${{ env.NODE_VERSION }}
           cache: npm
           cache-dependency-path: ${{ env.WORKDIR }}/package-lock.json
-      - run: mkdir -p ~/.npm
+      - run: mkdir -p "$HOME/.npm/_cacache"
+      - run: echo "NPM_CONFIG_CACHE=$HOME/.npm" >> "$GITHUB_ENV"
       - run: |
-          [ -f "${{ env.WORKDIR }}/package-lock.json" ] || { echo "❌ frontend/package-lock.json نیست"; exit 2; }
+          [ -f "${{ env.WORKDIR }}/package-lock.json" ] || { echo "frontend/package-lock.json not found"; exit 2; }
       - working-directory: ${{ env.WORKDIR }}
         run: |
           npm ci
