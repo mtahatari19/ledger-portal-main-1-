@@ -1,4 +1,4 @@
-name: Frontend CI/CD
+name: Frontend CI/CD (Self-Hosted on Pi)
 
 on:
   push:
@@ -18,9 +18,10 @@ env:
   NODE_VERSION: "20"
 
 jobs:
-  ci:
-    name: Lint + Test + Build
-    runs-on: ubuntu-latest
+  build_and_deploy:
+    name: Build + Deploy
+    runs-on: self-hosted
+
     steps:
       - uses: actions/checkout@v4
 
@@ -31,37 +32,22 @@ jobs:
           fi
 
       - id: loc
-        name: Locate frontend directory (smart)
+        name: Locate frontend directory
         run: |
           set -euo pipefail
-          if [ -n "${FRONTEND_DIR:-}" ]; then
-            [ -d "$FRONTEND_DIR" ] && [ -f "$FRONTEND_DIR/package.json" ] || { echo "FRONTEND_DIR invalid"; exit 2; }
-            echo "dir=${FRONTEND_DIR#./}" >> "$GITHUB_OUTPUT"; exit 0
-          fi
           CANDIDATES=("frontend" "web" "app" "ui" "client" "apps/frontend" "apps/web" "packages/frontend" "packages/web")
           DIR=""
           for d in "${CANDIDATES[@]}"; do
             if [ -d "$d" ] && [ -f "$d/package.json" ]; then DIR="$d"; break; fi
           done
-          if [ -z "$DIR" ]; then
-            mapfile -t ALL < <(find . -type f -name package.json -not -path "*/node_modules/*" -printf '%h\n' | sort -u)
-            FRONT=()
-            for p in "${ALL[@]}"; do
-              if jq -e '.scripts.build // empty' "$p/package.json" >/dev/null 2>&1; then FRONT+=("$p") && continue; fi
-              if jq -e '(.dependencies//{} + .devDependencies//{}) | has("next") or has("@angular/core") or has("vite") or has("react-scripts")' "$p/package.json" >/dev/null 2>&1; then FRONT+=("$p"); fi
-            done
-            if [ "${#FRONT[@]}" -eq 1 ]; then DIR="${FRONT[0]}"; elif [ "${#FRONT[@]}" -gt 1 ]; then DIR="${FRONT[0]}"; fi
-          fi
-          if [ -z "$DIR" ] && [ -f package.json ] && jq -e '.scripts.build // empty' package.json >/dev/null 2>&1; then DIR="."; fi
           [ -n "$DIR" ] || { echo "Could not locate frontend folder"; exit 2; }
-          echo "Using: $DIR"
           echo "dir=${DIR#./}" >> "$GITHUB_OUTPUT"
 
       - uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
 
-      - name: Prepare npm cache dir
+      - name: Prepare npm cache
         run: |
           mkdir -p "$HOME/.npm/_cacache"
           echo "NPM_CONFIG_CACHE=$HOME/.npm" >> "$GITHUB_ENV"
@@ -76,7 +62,7 @@ jobs:
 
       - name: Assert lockfile
         run: |
-          test -f "${{ steps.loc.outputs.dir }}/package-lock.json" || { echo "${{ steps.loc.outputs.dir }}/package-lock.json not found"; exit 2; }
+          test -f "${{ steps.loc.outputs.dir }}/package-lock.json" || { echo "no lockfile"; exit 2; }
 
       - name: Install
         working-directory: ${{ steps.loc.outputs.dir }}
@@ -85,193 +71,39 @@ jobs:
           CI: "true"
         run: npm ci --no-audit --no-fund
 
-      - name: Lint (PR only)
-        if: github.event_name == 'pull_request'
-        working-directory: ${{ steps.loc.outputs.dir }}
-        run: npm run lint --if-present
-
       - id: build
-        name: Build (smart)
+        name: Build
         working-directory: ${{ steps.loc.outputs.dir }}
         env:
           HUSKY: "0"
           CI: "true"
         run: |
           set -euo pipefail
-          if jq -e '.scripts.build // empty' package.json >/dev/null 2>&1; then
-            npm run build
-          else
-            if jq -e '(.dependencies//{} + .devDependencies//{}) | has("@angular/core")' package.json >/dev/null; then
-              npx ng build --configuration production || npx nx build || npm run build
-            elif jq -e '(.dependencies//{} + .devDependencies//{}) | has("next")' package.json >/dev/null; then
-              npx next build
-            elif jq -e '(.dependencies//{} + .devDependencies//{}) | has("vite")' package.json >/dev/null; then
-              npx vite build
-            elif jq -e '(.dependencies//{} + .devDependencies//{}) | has("react-scripts")' package.json >/dev/null; then
-              npx react-scripts build
-            else
-              echo "No build script and no known framework detected."
-              echo "Available scripts:"; jq -r '.scripts | keys[]?' package.json || true
-              exit 1
-            fi
-          fi
-          OUT="build"
-          if [ -f angular.json ]; then
-            DEFAULT_PROJECT=$(jq -r '.defaultProject // empty' angular.json)
-            [ -z "$DEFAULT_PROJECT" -o "$DEFAULT_PROJECT" = "null" ] && DEFAULT_PROJECT=$(jq -r '.projects | keys[0]' angular.json)
-            OUT=$(jq -r --arg p "$DEFAULT_PROJECT" '.projects[$p].architect.build.options.outputPath // .projects[$p].targets.build.options.outputPath // "dist"' angular.json)
-          elif [ -d dist ]; then OUT="dist"
-          elif [ -d build ]; then OUT="build"
-          elif [ -d .next ]; then OUT=".next"
-          elif [ -d out ]; then OUT="out"
-          fi
+          npm run build || { echo "No build script"; exit 1; }
+          OUT="dist"
+          [ -d build ] && OUT="build"
+          [ -d out ] && OUT="out"
           echo "dir=$OUT" >> "$GITHUB_OUTPUT"
-          echo "Build output dir: $OUT"
 
-      - name: Upload artifact (PR)
-        if: github.event_name == 'pull_request'
-        uses: actions/upload-artifact@v4
-        with:
-          name: frontend-build-pr-${{ github.run_id }}
-          path: ${{ steps.loc.outputs.dir }}/${{ steps.build.outputs.dir }}
-
-  deploy:
-    name: Deploy to Raspberry Pi
-    needs: ci
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-    runs-on: ubuntu-latest
-    env:
-      RELEASE_TGZ: frontend_${{ github.sha }}.tgz
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Ensure jq
-        run: |
-          if ! command -v jq >/dev/null 2>&1; then
-            sudo apt-get update && sudo apt-get install -y jq
-          fi
-
-      - id: loc
-        name: Locate frontend directory (smart)
-        run: |
-          set -euo pipefail
-          if [ -n "${FRONTEND_DIR:-}" ]; then
-            [ -d "$FRONTEND_DIR" ] && [ -f "$FRONTEND_DIR/package.json" ] || { echo "FRONTEND_DIR invalid"; exit 2; }
-            echo "dir=${FRONTEND_DIR#./}" >> "$GITHUB_OUTPUT"; exit 0
-          fi
-          CANDIDATES=("frontend" "web" "app" "ui" "client" "apps/frontend" "apps/web" "packages/frontend" "packages/web")
-          DIR=""
-          for d in "${CANDIDATES[@]}"; do
-            if [ -d "$d" ] && [ -f "$d/package.json" ]; then DIR="$d"; break; fi
-          done
-          if [ -z "$DIR" ]; then
-            mapfile -t ALL < <(find . -type f -name package.json -not -path "*/node_modules/*" -printf '%h\n' | sort -u)
-            FRONT=()
-            for p in "${ALL[@]}"; do
-              if jq -e '.scripts.build // empty' "$p/package.json" >/dev/null 2>&1; then FRONT+=("$p") && continue; fi
-              if jq -e '(.dependencies//{} + .devDependencies//{}) | has("next") or has("@angular/core") or has("vite") or has("react-scripts")' "$p/package.json" >/dev/null 2>&1; then FRONT+=("$p"); fi
-            done
-            if [ "${#FRONT[@]}" -eq 1 ]; then DIR="${FRONT[0]}"; elif [ "${#FRONT[@]}" -gt 1 ]; then DIR="${FRONT[0]}"; fi
-          fi
-          if [ -z "$DIR" ] && [ -f package.json ] && jq -e '.scripts.build // empty' package.json >/dev/null 2>&1; then DIR="."; fi
-          [ -n "$DIR" ] || { echo "Could not locate frontend folder"; exit 2; }
-          echo "Using: $DIR"
-          echo "dir=${DIR#./}" >> "$GITHUB_OUTPUT"
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version: ${{ env.NODE_VERSION }}
-
-      - name: Prepare npm cache dir
-        run: |
-          mkdir -p "$HOME/.npm/_cacache"
-          echo "NPM_CONFIG_CACHE=$HOME/.npm" >> "$GITHUB_ENV"
-
-      - name: Cache npm
-        uses: actions/cache@v4
-        with:
-          path: ~/.npm
-          key: npm-${{ runner.os }}-${{ hashFiles(format('{0}/package-lock.json', steps.loc.outputs.dir)) }}
-          restore-keys: |
-            npm-${{ runner.os }}-
-
-      - name: Assert lockfile
-        run: |
-          test -f "${{ steps.loc.outputs.dir }}/package-lock.json" || { echo "${{ steps.loc.outputs.dir }}/package-lock.json not found"; exit 2; }
-
-      - id: build
-        name: Install + Build (smart)
-        working-directory: ${{ steps.loc.outputs.dir }}
+      - name: Deploy locally
         env:
-          HUSKY: "0"
-          CI: "true"
+          OUT_DIR: ${{ steps.build.outputs.dir }}
         run: |
           set -euo pipefail
-          npm ci --no-audit --no-fund
-          if jq -e '.scripts.build // empty' package.json >/dev/null 2>&1; then
-            npm run build
-          else
-            if jq -e '(.dependencies//{} + .devDependencies//{}) | has("@angular/core")' package.json >/dev/null; then
-              npx ng build --configuration production || npx nx build || npm run build
-            elif jq -e '(.dependencies//{} + .devDependencies//{}) | has("next")' package.json >/dev/null; then
-              npx next build
-            elif jq -e '(.dependencies//{} + .devDependencies//{}) | has("vite")' package.json >/dev/null; then
-              npx vite build
-            elif jq -e '(.dependencies//{} + .devDependencies//{}) | has("react-scripts")' package.json >/dev/null; then
-              npx react-scripts build
-            else
-              echo "No build script and no known framework detected."
-              echo "Available scripts:"; jq -r '.scripts | keys[]?' package.json || true
-              exit 1
-            fi
+          ROOT="/srv/www/frontend"
+          RELEASES="$ROOT/releases"
+          CURRENT="$ROOT/current"
+          NEW="$RELEASES/${GITHUB_SHA}"
+          sudo mkdir -p "$RELEASES" "$NEW"
+          sudo rsync -a --delete "${{ steps.loc.outputs.dir }}/$OUT_DIR"/ "$NEW"/
+          if [ ! -f "$NEW/index.html" ] && [ "$(find "$NEW" -mindepth 1 -maxdepth 1 -type d | wc -l)" -eq 1 ]; then
+            INNER=$(find "$NEW" -mindepth 1 -maxdepth 1 -type d | head -n1)
+            sudo rsync -a --delete "$INNER"/ "$NEW"/
+            sudo rm -rf "$INNER"
           fi
-          OUT="build"
-          if [ -f angular.json ]; then
-            DEFAULT_PROJECT=$(jq -r '.defaultProject // empty' angular.json)
-            [ -z "$DEFAULT_PROJECT" -o "$DEFAULT_PROJECT" = "null" ] && DEFAULT_PROJECT=$(jq -r '.projects | keys[0]' angular.json)
-            OUT=$(jq -r --arg p "$DEFAULT_PROJECT" '.projects[$p].architect.build.options.outputPath // .projects[$p].targets.build.options.outputPath // "dist"' angular.json)
-          elif [ -d dist ]; then OUT="dist"
-          elif [ -d build ]; then OUT="build"
-          elif [ -d .next ]; then OUT=".next"
-          elif [ -d out ]; then OUT="out"
-          fi
-          echo "OUT_DIR=$OUT" >> "$GITHUB_ENV"
-          echo "Build output dir: $OUT"
-
-      - name: Pack
-        run: tar -C "${{ steps.loc.outputs.dir }}" -czf "${{ env.RELEASE_TGZ }}" "$OUT_DIR"
-
-      - name: Copy to Pi
-        uses: appleboy/scp-action@v0.1.7
-        with:
-          host: ${{ secrets.PI_HOST }}
-          username: ${{ secrets.PI_USER }}
-          key: ${{ secrets.PI_SSH_KEY }}
-          port: ${{ secrets.PI_SSH_PORT || 22 }}
-          source: "${{ env.RELEASE_TGZ }}"
-          target: "/tmp/${{ env.RELEASE_TGZ }}"
-
-      - name: Atomic switch
-        uses: appleboy/ssh-action@v1.2.0
-        with:
-          host: ${{ secrets.PI_HOST }}
-          username: ${{ secrets.PI_USER }}
-          key: ${{ secrets.PI_SSH_KEY }}
-          port: ${{ secrets.PI_SSH_PORT || 22 }}
-          script_stop: true
-          script: |
-            set -euo pipefail
-            ROOT="/srv/www/frontend"
-            RELEASES="$ROOT/releases"
-            CURRENT="$ROOT/current"
-            NEW="$RELEASES/${{ github.sha }}"
-            mkdir -p "$RELEASES" "$NEW"
-            tar -xzf "/tmp/frontend_${{ github.sha }}.tgz" -C "$NEW"
-            if [ "$(find "$NEW" -mindepth 1 -maxdepth 1 -type d | wc -l)" -eq 1 ] && [ ! -f "$NEW/index.html" ]; then
-              INNER=$(find "$NEW" -mindepth 1 -maxdepth 1 -type d | head -n1)
-              rsync -a --delete "$INNER"/ "$NEW"/
-              rm -rf "$INNER"
-            fi
-            ln -sfn "$NEW" "$CURRENT"
-            ls -1dt "$RELEASES"/* | tail -n +6 | xargs -r rm -rf
-            sudo systemctl reload nginx || true
+          sudo ln -sfn "$NEW" "$CURRENT"
+          sudo bash -c 'ls -1dt '"$RELEASES"'/* | tail -n +6 | xargs -r rm -rf'
+          sudo chown -R deploy:www-data "$ROOT"
+          sudo find "$ROOT" -type d -exec chmod 755 {} \;
+          sudo find "$ROOT" -type f -exec chmod 644 {} \;
+          sudo nginx -t && sudo systemctl reload nginx || true
