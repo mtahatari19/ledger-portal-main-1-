@@ -6,13 +6,13 @@ on:
     paths:
       - "**/package.json"
       - "**/src/**"
-      - ".github/workflows/frontend.yml"
+      - ".github/workflows/frontend-docker.yml"
   pull_request:
     branches: [main]
     paths:
       - "**/package.json"
       - "**/src/**"
-      - ".github/workflows/frontend.yml"
+      - ".github/workflows/frontend-docker.yml"
 
 concurrency:
   group: frontend-${{ github.ref }}
