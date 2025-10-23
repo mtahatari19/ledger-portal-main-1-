@@ -1,0 +1,7 @@
+name: ping
+on: push
+jobs:
+  t:
+    runs-on: self-hosted
+    steps:
+      - run: echo ok
