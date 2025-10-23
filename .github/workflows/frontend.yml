@@ -4,14 +4,16 @@ on:
   push:
     branches: [main]
     paths:
-      - "**/package.json"
-      - "**/src/**"
+      - "frontend/**"
+      - "apps/frontend/**"
+      - "packages/frontend/**"
       - ".github/workflows/frontend.yml"
   pull_request:
     branches: [main]
     paths:
-      - "**/package.json"
-      - "**/src/**"
+      - "frontend/**"
+      - "apps/frontend/**"
+      - "packages/frontend/**"
       - ".github/workflows/frontend.yml"
 
 concurrency:
@@ -102,7 +104,8 @@ jobs:
     if: github.event_name == 'push'
     steps:
       - uses: actions/checkout@v4
-      - run: |
+      - name: retag-and-up
+        run: |
           set -euo pipefail
           docker tag "${{ env.IMAGE_NAME }}:${GITHUB_SHA}" "${{ env.IMAGE_NAME }}:${{ env.STABLE_TAG }}"
           cd deploy
