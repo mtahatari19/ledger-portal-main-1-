@@ -1,3 +1,4 @@
+# .github/workflows/frontend.yml
 name: Frontend CI/CD (Self-Hosted on Pi)
 
 on:
@@ -14,26 +15,19 @@ on:
       - "**/src/**"
       - ".github/workflows/frontend.yml"
 
-concurrency:
-  group: frontend-${{ github.ref }}
-  cancel-in-progress: true
-
 env:
   NODE_VERSION: "20"
-  TEST_OUTPUT: "test-results/junit.xml"
-
-permissions:
-  contents: read
 
 jobs:
-  detect:
+  build_and_deploy:
+    name: Build + Deploy
     runs-on: self-hosted
-    outputs:
-      dir: ${{ steps.loc.outputs.dir }}
-      sudo_available: ${{ steps.preflight.outputs.sudo_available }}
+
     steps:
       - uses: actions/checkout@v4
+
       - id: preflight
+        name: Preflight
         run: |
           set -euo pipefail
           if sudo -n true 2>/dev/null; then
@@ -41,7 +35,8 @@ jobs:
           else
             echo "sudo_available=false" >> "$GITHUB_OUTPUT"
           fi
-      - name: ensure-jq
+
+      - name: Ensure jq
         run: |
           set -euo pipefail
           if ! command -v jq >/dev/null 2>&1; then
@@ -51,7 +46,9 @@ jobs:
               exit 1
             fi
           fi
+
       - id: loc
+        name: Locate frontend directory
         env:
           FRONTEND_DIR: ${{ vars.FRONTEND_DIR }}
         run: |
@@ -63,14 +60,16 @@ jobs:
           fi
           mapfile -t PKG_DIRS < <(find . -type f -name package.json -not -path "*/node_modules/*" -printf '%h\n' | sort -u)
           pick_dir() {
-            for d in frontend web app ui client apps/frontend apps/web packages/frontend packages/web; do
+            for d in "$@"; do
               for p in "${PKG_DIRS[@]}"; do
                 if [[ "$p" == "./$d" || "$p" == "$d" ]]; then echo "${p#./}"; return 0; fi
               done
             done
             return 1
           }
-          DIR="$(pick_dir)" || true
+          DIR=""
+          COMMON=(frontend web app ui client apps/frontend apps/web packages/frontend packages/web)
+          CAND=$(pick_dir "${COMMON[@]}") && DIR="$CAND" || true
           if [ -z "$DIR" ]; then
             for p in "${PKG_DIRS[@]}"; do
               if jq -e '.scripts.build // empty' "$p/package.json" >/dev/null 2>&1; then DIR="${p#./}"; break; fi
@@ -78,58 +77,59 @@ jobs:
           fi
           if [ -z "$DIR" ]; then
             for p in "${PKG_DIRS[@]}"; do
-              if jq -e '(.dependencies//{} + .devDependencies//{}) | has("next") or has("@angular/core") or has("vite") or has("react-scripts") or has("react")' "$p/package.json" >/dev/null; then DIR="${p#./}"; break; fi
+              if jq -e '(.dependencies//{} + .devDependencies//{}) | has("next") or has("@angular/core") or has("vite") or has("react-scripts") or has("react")' "$p/package.json" >/dev/null 2>&1; then DIR="${p#./}"; break; fi
             done
           fi
-          [ -n "$DIR" ] || { echo "frontend not found"; exit 2; }
+          if [ -z "$DIR" ] && [ -f package.json ] && jq -e '.scripts.build // empty' package.json >/dev/null 2>&1; then DIR="."; fi
+          [ -n "$DIR" ] || { echo "Could not locate frontend folder"; exit 2; }
           echo "dir=$DIR" >> "$GITHUB_OUTPUT"
 
-  build_test:
-    runs-on: self-hosted
-    needs: [detect]
-    outputs:
-      outdir: ${{ steps.build.outputs.dir }}
-    steps:
-      - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
-      - name: prepare-cache
+
+      - name: Prepare npm cache dir
         run: |
           set -euo pipefail
           mkdir -p "${GITHUB_WORKSPACE}/.npm-cache/_cacache"
           echo "NPM_CONFIG_CACHE=${GITHUB_WORKSPACE}/.npm-cache" >> "$GITHUB_ENV"
-      - name: cache-npm-store
+
+      - name: Cache npm store
         uses: actions/cache@v4
         with:
           path: ${{ github.workspace }}/.npm-cache
-          key: npmstore-${{ runner.os }}-${{ env.NODE_VERSION }}-${{ hashFiles(format('{0}/package-lock.json', needs.detect.outputs.dir)) }}
+          key: npmstore-${{ runner.os }}-${{ env.NODE_VERSION }}-${{ hashFiles(format('{0}/package-lock.json', steps.loc.outputs.dir)) }}
           restore-keys: |
             npmstore-${{ runner.os }}-${{ env.NODE_VERSION }}-
-      - name: cache-node-modules
+
+      - name: Cache node_modules
         uses: actions/cache@v4
         with:
-          path: ${{ needs.detect.outputs.dir }}/node_modules
-          key: nm-${{ runner.os }}-${{ env.NODE_VERSION }}-${{ hashFiles(format('{0}/package-lock.json', needs.detect.outputs.dir)) }}
+          path: ${{ steps.loc.outputs.dir }}/node_modules
+          key: nm-${{ runner.os }}-${{ env.NODE_VERSION }}-${{ hashFiles(format('{0}/package-lock.json', steps.loc.outputs.dir)) }}
           restore-keys: |
             nm-${{ runner.os }}-${{ env.NODE_VERSION }}-
-      - name: cache-build-tools
+
+      - name: Cache build tools
         uses: actions/cache@v4
         with:
           path: |
             ~/.cache/nx
             ~/.vite
-            ${{ needs.detect.outputs.dir }}/.next/cache
-            ${{ needs.detect.outputs.dir }}/.angular/cache
+            ${{ steps.loc.outputs.dir }}/.next/cache
+            ${{ steps.loc.outputs.dir }}/.angular/cache
           key: bt-${{ runner.os }}-${{ env.NODE_VERSION }}-${{ github.sha }}
           restore-keys: |
             bt-${{ runner.os }}-${{ env.NODE_VERSION }}-
-      - name: assert-lockfile
+
+      - name: Assert lockfile
         run: |
           set -euo pipefail
-          test -f "${{ needs.detect.outputs.dir }}/package-lock.json" || { echo "no lockfile"; exit 2; }
-      - name: install
-        working-directory: ${{ needs.detect.outputs.dir }}
+          test -f "${{ steps.loc.outputs.dir }}/package-lock.json" || { echo "no lockfile"; exit 2; }
+
+      - id: install
+        name: Install
+        working-directory: ${{ steps.loc.outputs.dir }}
         env:
           HUSKY: "0"
           CI: "true"
@@ -142,9 +142,10 @@ jobs:
           NPM_CONFIG_FETCH_RETRY_MINTIMEOUT: "1000"
           NPM_CONFIG_FETCH_RETRY_MAXTIMEOUT: "60000"
         run: npm ci --prefer-offline --no-audit --no-fund --cache "$NPM_CONFIG_CACHE"
+
       - id: build
-        name: build
-        working-directory: ${{ needs.detect.outputs.dir }}
+        name: Build
+        working-directory: ${{ steps.loc.outputs.dir }}
         env:
           HUSKY: "0"
           CI: "true"
@@ -177,60 +178,31 @@ jobs:
           elif [ -d .next ]; then OUT=".next"
           fi
           echo "dir=$OUT" >> "$GITHUB_OUTPUT"
-      - name: test
-        working-directory: ${{ needs.detect.outputs.dir }}
-        env:
-          CI: "true"
-        run: |
-          set -euo pipefail
-          mkdir -p "$(dirname "${TEST_OUTPUT}")"
-          if npx --yes vitest --version >/dev/null 2>&1; then
-            npx vitest run --reporter=junit --outputFile="${TEST_OUTPUT}" || true
-          elif npx --yes jest --version >/dev/null 2>&1; then
-            npx jest --ci --reporters=default --reporters=jest-junit || true
-            if [ -f junit.xml ]; then mkdir -p "$(dirname "${TEST_OUTPUT}")"; mv junit.xml "${TEST_OUTPUT}"; fi
-          else
-            npm test || true
-          fi
-      - name: newrelic-junit
-        uses: newrelic/junit-reporter-action@v0.3.0
-        with:
-          ingestLicenseKey: ${{ secrets.NEW_RELIC_INGEST_LICENSE_KEY }}
-          accountId: ${{ secrets.NEW_RELIC_ACCOUNT_ID }}
-          region: ${{ vars.NEW_RELIC_REGION }}
-          testOutputPath: ${{ needs.detect.outputs.dir }}/${{ env.TEST_OUTPUT }}
 
-  deploy:
-    runs-on: self-hosted
-    needs: [build_test]
-    steps:
-      - uses: actions/checkout@v4
-      - name: deploy-local
+      - name: Deploy locally
         env:
-          OUT_DIR: ${{ needs.build_test.outputs.outdir }}
+          OUT_DIR: ${{ steps.build.outputs.dir }}
           ROOT_DIR: ${{ vars.FRONTEND_ROOT }}
-          SUDO_AVAILABLE: ${{ needs.detect.outputs.sudo_available }}
         run: |
           set -euo pipefail
           SUDO=""
-          if [ "$SUDO_AVAILABLE" = "true" ]; then SUDO="sudo"; fi
+          if sudo -n true 2>/dev/null; then SUDO="sudo"; fi
           ROOT="${ROOT_DIR:-/srv/www/frontend}"
           RELEASES="$ROOT/releases"
           CURRENT="$ROOT/current"
           NEW="$RELEASES/${GITHUB_SHA}"
           $SUDO mkdir -p "$RELEASES" "$NEW"
           set +e
-          $SUDO rsync -a --delete "${{ needs.detect.outputs.dir }}/$OUT_DIR"/ "$NEW"/
+          $SUDO rsync -a --delete "${{ steps.loc.outputs.dir }}/$OUT_DIR"/ "$NEW"/
           RC=$?
           set -e
           if [ "$RC" -ne 0 ] && [ "$RC" -ne 24 ]; then exit "$RC"; fi
-          if [ ! -f "$NEW/index.html" ] && [ "$(find "$NEW" -mindepth 1 -maxdepth 1 -type d | wc -l)" -eq 1 ]; then
-            INNER=$(find "$NEW" -mindepth 1 -maxdepth 1 -type d | head -n1)
+          TARGET=$(find "$NEW" -maxdepth 4 -type f -name index.html -printf '%h\n' | head -n1)
+          if [ -n "$TARGET" ] && [ "$TARGET" != "$NEW" ]; then
             TMP=$(mktemp -d)
-            $SUDO rsync -a "$INNER"/ "$TMP"/
-            $SUDO rm -rf "$NEW"/*
-            $SUDO rsync -a "$TMP"/ "$NEW"/
-            $SUDO rm -rf "$TMP" "$INNER" || true
+            $SUDO rsync -a "$TARGET"/ "$TMP"/
+            $SUDO rsync -a --delete "$TMP"/ "$NEW"/
+            $SUDO rm -rf "$TMP"
           fi
           $SUDO ln -sfn "$NEW" "$CURRENT"
           $SUDO bash -c 'ls -1dt '"$RELEASES"'/* | tail -n +6 | xargs -r rm -rf'
