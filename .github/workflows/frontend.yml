@@ -1,4 +1,4 @@
-name: Frontend CI/CD (Self-Hosted on Pi)
+name: Frontend CI/CD (Docker on Pi)
 
 on:
   push:
@@ -14,201 +14,102 @@ on:
       - "**/src/**"
       - ".github/workflows/frontend.yml"
 
+concurrency:
+  group: frontend-${{ github.ref }}
+  cancel-in-progress: true
+
 env:
   NODE_VERSION: "20"
+  IMAGE_NAME: "frontend"
+  STABLE_TAG: "current"
+  APP_PORT: "18080"
+  BUILDX_CACHE_DIR: "/var/tmp/buildx-cache"
+
+permissions:
+  contents: read
 
 jobs:
-  build_and_deploy:
-    name: Build + Deploy
+  detect:
     runs-on: self-hosted
-
+    outputs:
+      dir: ${{ steps.loc.outputs.dir }}
     steps:
       - uses: actions/checkout@v4
-
       - id: preflight
-        name: Preflight
         run: |
           set -euo pipefail
-          if sudo -n true 2>/dev/null; then
-            echo "sudo_available=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "sudo_available=false" >> "$GITHUB_OUTPUT"
-          fi
-
-      - name: Ensure jq
+          if sudo -n true 2>/dev/null; then echo "sudo_available=true" >> "$GITHUB_OUTPUT"; else echo "sudo_available=false" >> "$GITHUB_OUTPUT"; fi
+      - name: ensure-tools
         run: |
           set -euo pipefail
           if ! command -v jq >/dev/null 2>&1; then
-            if [ "${{ steps.preflight.outputs.sudo_available }}" = "true" ]; then
-              sudo apt-get update && sudo apt-get install -y jq
-            else
-              exit 1
-            fi
+            if [ "${{ steps.preflight.outputs.sudo_available }}" = "true" ]; then sudo apt-get update && sudo apt-get install -y jq; else exit 1; fi
           fi
-
+          if [ "${{ steps.preflight.outputs.sudo_available }}" = "true" ]; then sudo mkdir -p "${{ env.BUILDX_CACHE_DIR }}"; fi
       - id: loc
-        name: Locate frontend directory
         env:
           FRONTEND_DIR: ${{ vars.FRONTEND_DIR }}
         run: |
           set -euo pipefail
           if [ -n "${FRONTEND_DIR:-}" ]; then
-            [ -d "$FRONTEND_DIR" ] && [ -f "$FRONTEND_DIR/package.json" ] || { echo "FRONTEND_DIR invalid"; exit 2; }
+            [ -d "$FRONTEND_DIR" ] && [ -f "$FRONTEND_DIR/package.json" ] || { echo "invalid FRONTEND_DIR"; exit 2; }
             echo "dir=${FRONTEND_DIR#./}" >> "$GITHUB_OUTPUT"
             exit 0
           fi
           mapfile -t PKG_DIRS < <(find . -type f -name package.json -not -path "*/node_modules/*" -printf '%h\n' | sort -u)
-          pick_dir() {
-            for d in "$@"; do
-              for p in "${PKG_DIRS[@]}"; do
-                if [[ "$p" == "./$d" || "$p" == "$d" ]]; then echo "${p#./}"; return 0; fi
-              done
-            done
-            return 1
-          }
-          DIR=""
-          COMMON=(frontend web app ui client apps/frontend apps/web packages/frontend packages/web)
-          CAND=$(pick_dir "${COMMON[@]}") && DIR="$CAND" || true
+          pick_dir() { for d in frontend apps/frontend packages/frontend web app ui client; do for p in "${PKG_DIRS[@]}"; do [[ "$p" == "./$d" || "$p" == "$d" ]] && { echo "${p#./}"; return 0; }; done; done; return 1; }
+          DIR="$(pick_dir)" || true
           if [ -z "$DIR" ]; then
-            for p in "${PKG_DIRS[@]}"; do
-              if jq -e '.scripts.build // empty' "$p/package.json" >/dev/null 2>&1; then DIR="${p#./}"; break; fi
-            done
+            for p in "${PKG_DIRS[@]}"; do if jq -e '.scripts.build // empty' "$p/package.json" >/dev/null 2>&1; then DIR="${p#./}"; break; fi; done
           fi
           if [ -z "$DIR" ]; then
-            for p in "${PKG_DIRS[@]}"; do
-              if jq -e '(.dependencies//{} + .devDependencies//{}) | has("next") or has("@angular/core") or has("vite") or has("react-scripts") or has("react")' "$p/package.json" >/dev/null 2>&1; then DIR="${p#./}"; break; fi
-            done
+            for p in "${PKG_DIRS[@]}"; do if jq -e '(.dependencies//{} + .devDependencies//{}) | has("next") or has("@angular/core") or has("vite") or has("react-scripts") or has("react")' "$p/package.json" >/dev/null; then DIR="${p#./}"; break; fi; done
           fi
-          if [ -z "$DIR" ] && [ -f package.json ] && jq -e '.scripts.build // empty' package.json >/dev/null 2>&1; then DIR="."; fi
-          [ -n "$DIR" ] || { echo "Could not locate frontend folder"; exit 2; }
+          [ -n "$DIR" ] || { echo "frontend not found"; exit 2; }
           echo "dir=$DIR" >> "$GITHUB_OUTPUT"
 
-      - uses: actions/setup-node@v4
+  build:
+    runs-on: self-hosted
+    needs: [detect]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
         with:
-          node-version: ${{ env.NODE_VERSION }}
-
-      - name: Prepare npm cache dir
+          driver-opts: |
+            image=moby/buildkit:latest
+      - id: meta
         run: |
           set -euo pipefail
-          mkdir -p "${GITHUB_WORKSPACE}/.npm-cache/_cacache"
-          echo "NPM_CONFIG_CACHE=${GITHUB_WORKSPACE}/.npm-cache" >> "$GITHUB_ENV"
-
-      - name: Cache npm store
-        uses: actions/cache@v4
+          echo "image_ref=${{ env.IMAGE_NAME }}:${GITHUB_SHA}" >> "$GITHUB_OUTPUT"
+      - name: docker-build
+        uses: docker/build-push-action@v6
         with:
-          path: ${{ github.workspace }}/.npm-cache
-          key: npmstore-${{ runner.os }}-${{ env.NODE_VERSION }}-${{ hashFiles(format('{0}/package-lock.json', steps.loc.outputs.dir)) }}
-          restore-keys: |
-            npmstore-${{ runner.os }}-${{ env.NODE_VERSION }}-
+          context: ${{ needs.detect.outputs.dir }}
+          file: ${{ needs.detect.outputs.dir }}/Dockerfile
+          tags: ${{ env.IMAGE_NAME }}:${{ github.sha }}
+          load: true
+          provenance: false
+          build-args: |
+            NODE_VERSION=${{ env.NODE_VERSION }}
+          cache-from: |
+            type=local,src=${{ env.BUILDX_CACHE_DIR }}
+          cache-to: |
+            type=local,dest=${{ env.BUILDX_CACHE_DIR }},mode=max
 
-      - name: Cache node_modules
-        uses: actions/cache@v4
-        with:
-          path: ${{ steps.loc.outputs.dir }}/node_modules
-          key: nm-${{ runner.os }}-${{ env.NODE_VERSION }}-${{ hashFiles(format('{0}/package-lock.json', steps.loc.outputs.dir)) }}
-          restore-keys: |
-            nm-${{ runner.os }}-${{ env.NODE_VERSION }}-
-
-      - name: Cache build tools
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/.cache/nx
-            ~/.vite
-            ${{ steps.loc.outputs.dir }}/.next/cache
-            ${{ steps.loc.outputs.dir }}/.angular/cache
-          key: bt-${{ runner.os }}-${{ env.NODE_VERSION }}-${{ github.sha }}
-          restore-keys: |
-            bt-${{ runner.os }}-${{ env.NODE_VERSION }}-
-
-      - name: Assert lockfile
-        run: |
+  deploy:
+    runs-on: self-hosted
+    needs: [build]
+    if: github.event_name == 'push'
+    steps:
+      - uses: actions/checkout@v4
+      - run: |
           set -euo pipefail
-          test -f "${{ steps.loc.outputs.dir }}/package-lock.json" || { echo "no lockfile"; exit 2; }
-
-      - id: install
-        name: Install
-        working-directory: ${{ steps.loc.outputs.dir }}
-        env:
-          HUSKY: "0"
-          CI: "true"
-          NPM_CONFIG_CACHE: ${{ env.NPM_CONFIG_CACHE }}
-          NPM_CONFIG_PROGRESS: "false"
-          NPM_CONFIG_AUDIT: "false"
-          NPM_CONFIG_FUND: "false"
-          NPM_CONFIG_MAXSOCKETS: "50"
-          NPM_CONFIG_FETCH_RETRIES: "5"
-          NPM_CONFIG_FETCH_RETRY_MINTIMEOUT: "1000"
-          NPM_CONFIG_FETCH_RETRY_MAXTIMEOUT: "60000"
-        run: npm ci --prefer-offline --no-audit --no-fund --cache "$NPM_CONFIG_CACHE"
-
-      - id: build
-        name: Build
-        working-directory: ${{ steps.loc.outputs.dir }}
-        env:
-          HUSKY: "0"
-          CI: "true"
-        run: |
-          set -euo pipefail
-          if jq -e '.scripts.build // empty' package.json >/dev/null 2>&1; then
-            npm run build
-          else
-            if jq -e '(.dependencies//{} + .devDependencies//{}) | has("@angular/core")' package.json >/dev/null; then
-              npx ng build --configuration production || npx nx build || npm run build
-            elif jq -e '(.dependencies//{} + .devDependencies//{}) | has("next")' package.json >/dev/null; then
-              npx next build
-              if jq -e '.scripts | has("export")' package.json >/dev/null 2>&1; then npm run export; fi
-            elif jq -e '(.dependencies//{} + .devDependencies//{}) | has("vite")' package.json >/dev/null; then
-              npx vite build
-            elif jq -e '(.dependencies//{} + .devDependencies//{}) | has("react-scripts")' package.json >/dev/null; then
-              npx react-scripts build
-            else
-              echo "No build script and no known framework detected"; exit 1
-            fi
-          fi
-          OUT="build"
-          if [ -f angular.json ]; then
-            DEFAULT_PROJECT=$(jq -r '.defaultProject // empty' angular.json)
-            [ -z "$DEFAULT_PROJECT" -o "$DEFAULT_PROJECT" = "null" ] && DEFAULT_PROJECT=$(jq -r '.projects | keys[0]' angular.json)
-            OUT=$(jq -r --arg p "$DEFAULT_PROJECT" '.projects[$p].architect.build.options.outputPath // .projects[$p].targets.build.options.outputPath // "dist"' angular.json)
-          elif [ -d dist ]; then OUT="dist"
-          elif [ -d build ]; then OUT="build"
-          elif [ -d out ]; then OUT="out"
-          elif [ -d .next ]; then OUT=".next"
-          fi
-          echo "dir=$OUT" >> "$GITHUB_OUTPUT"
-
-      - name: Deploy locally
-        env:
-          OUT_DIR: ${{ steps.build.outputs.dir }}
-          ROOT_DIR: ${{ vars.FRONTEND_ROOT }}
-        run: |
-          set -euo pipefail
-          SUDO=""
-          if sudo -n true 2>/dev/null; then SUDO="sudo"; fi
-          ROOT="${ROOT_DIR:-/srv/www/frontend}"
-          RELEASES="$ROOT/releases"
-          CURRENT="$ROOT/current"
-          NEW="$RELEASES/${GITHUB_SHA}"
-          $SUDO mkdir -p "$RELEASES" "$NEW"
-          set +e
-          $SUDO rsync -a --delete "${{ steps.loc.outputs.dir }}/$OUT_DIR"/ "$NEW"/
-          RC=$?
-          set -e
-          if [ "$RC" -ne 0 ] && [ "$RC" -ne 24 ]; then exit "$RC"; fi
-          if [ ! -f "$NEW/index.html" ] && [ "$(find "$NEW" -mindepth 1 -maxdepth 1 -type d | wc -l)" -eq 1 ]; then
-            INNER=$(find "$NEW" -mindepth 1 -maxdepth 1 -type d | head -n1)
-            TMP=$(mktemp -d)
-            $SUDO rsync -a "$INNER"/ "$TMP"/
-            $SUDO rm -rf "$NEW"/*
-            $SUDO rsync -a "$TMP"/ "$NEW"/
-            $SUDO rm -rf "$TMP" "$INNER" || true
-          fi
-          $SUDO ln -sfn "$NEW" "$CURRENT"
-          $SUDO bash -c 'ls -1dt '"$RELEASES"'/* | tail -n +6 | xargs -r rm -rf'
-          if [ -n "$SUDO" ]; then
-            $SUDO chown -R deploy:www-data "$ROOT"
-            $SUDO find "$ROOT" -type d -exec chmod 755 {} \;
-            $SUDO find "$ROOT" -type f -exec chmod 644 {} \;
-            $SUDO nginx -t && $SUDO systemctl reload nginx || true
-          fi
+          docker tag "${{ env.IMAGE_NAME }}:${GITHUB_SHA}" "${{ env.IMAGE_NAME }}:${{ env.STABLE_TAG }}"
+          cd deploy
+          docker compose up -d --no-deps frontend
+          for i in $(seq 1 15); do
+            sleep 2
+            if curl -fsS -I "http://localhost:${{ env.APP_PORT }}/" >/dev/null 2>&1; then exit 0; fi
+          done
+          docker compose logs --no-color --tail=200 frontend || true
+          exit 1
