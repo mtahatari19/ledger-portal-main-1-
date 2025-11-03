@@ -1,9 +1,0 @@
-.mat-bottom-sheet-container {
-  @apply rounded-t-2xl #{!important};
-  padding-bottom: max(env(safe-area-inset-bottom), 0.75rem) #{!important};
-  touch-action: pan-y;
-
-  &.slow-height-transition {
-    transition: height 0.3s ease-out !important;
-  }
-}

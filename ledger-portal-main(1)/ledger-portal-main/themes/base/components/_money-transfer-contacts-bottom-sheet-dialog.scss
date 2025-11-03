@@ -1,9 +1,0 @@
-ledger-portal-money-transfer-contacts-bottom-sheet-dialog {
-  .multiple-account-expansion-panel {
-    @apply shadow-none rounded-none #{!important};
-
-    .mat-expansion-panel-body {
-      @apply p-0 #{!important};
-    }
-  }
-}
