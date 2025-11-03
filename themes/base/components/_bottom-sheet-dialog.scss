@@ -1,0 +1,39 @@
+@use '@angular/material' as mat;
+@use '../vendors/material/material' as *;
+ledger-portal-bottom-sheet-dialog {
+  @apply relative flex h-full flex-col;
+}
+
+.bottom-sheet-dialog-title {
+  font-size: mat.m2-font-size($bm-typography-fa, subtitle-1);
+  font-weight: mat.m2-font-size($bm-typography-fa, subtitle-1);
+}
+
+.bottom-sheet-dialog-content {
+  @apply flex flex-1 flex-col overflow-auto max-sm:mt-2 max-sm:pt-4;
+}
+
+.bottom-sheet-dialog-actions {
+  @apply relative flex flex-wrap justify-start pt-4 sm:px-6 sm:pb-6 sm:pt-0;
+  border-top: 1px solid rgba(0, 0, 0, 0);
+
+  &.ledger-portal-bottom-sheet-dialog-actions-align-center,
+  &[align='center'] {
+    @apply justify-center;
+  }
+
+  &.ledger-portal-bottom-sheet-dialog-actions-align-end,
+  &[align='end'] {
+    @apply justify-end;
+  }
+
+  .mat-mdc-button-base,
+  .mat-mdc-mdc-button-base {
+    @apply max-sm:flex-1;
+  }
+
+  .mat-mdc-button-base + .mat-mdc-button-base,
+  .mat-mdc-mdc-button-base + .mat-mdc-mdc-button-base {
+    @apply ms-2;
+  }
+}

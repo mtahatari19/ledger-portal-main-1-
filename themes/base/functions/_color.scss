@@ -1,0 +1,6 @@
+@use 'sass:color';
+
+@function destruct-color($color) {
+  @return #{color.channel($color, 'red', $space: rgb)}, #{color.channel($color, 'green', $space: rgb)},
+  #{color.channel($color, 'blue', $space: rgb)};
+}

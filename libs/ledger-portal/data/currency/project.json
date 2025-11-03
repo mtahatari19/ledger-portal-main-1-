@@ -1,0 +1,21 @@
+{
+  "name": "ledger-portal-data-currency",
+  "$schema": "../../../../node_modules/nx/schemas/project-schema.json",
+  "projectType": "library",
+  "sourceRoot": "libs/ledger-portal/data/currency/src",
+  "prefix": "ledger-portal",
+  "tags": [],
+  "targets": {
+    "test": {
+      "executor": "@nx/jest:jest",
+      "outputs": ["{workspaceRoot}/coverage/libs/ledger-portal/data/currency"],
+      "options": {
+        "jestConfig": "libs/ledger-portal/data/currency/jest.config.ts"
+      }
+    },
+    "lint": {
+      "executor": "@nx/eslint:lint"
+    }
+  }
+}
+

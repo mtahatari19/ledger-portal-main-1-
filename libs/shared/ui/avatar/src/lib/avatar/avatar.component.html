@@ -1,0 +1,31 @@
+@if (!editable) {
+  <img
+    class="h-full w-full object-cover"
+    [src]="avatar ? avatar : './assets/images/contact.svg'"
+    [alt]="avatar ? name : ''" />
+}
+@if (editable) {
+  <button
+    class="h-full w-full"
+    matRipple
+    [matTooltip]="tooltipText"
+    [ledgerPortalOverlaySpinner]="!!(uploadingPhoto || removingPhoto)">
+    @if (avatar) {
+      <img class="h-full w-full object-cover" [src]="avatar" [alt]="name" />
+    } @else {
+      <div class="bg-primary flex h-full w-full items-center justify-center rounded-full bg-opacity-20">
+        <mat-icon svgIcon="user-outlined" ledgerPortalSvgIconType="stroke" color="primary" />
+      </div>
+    }
+  </button>
+  <input
+    #uploadPhotoInput
+    class="hidden"
+    type="file"
+    (change)="_emitUploadPhoto(uploadPhotoInput.files?.[0])"
+    accept="image/png, image/jpeg" />
+
+  <ng-template #avatarCameraDialog>
+    <ledger-portal-retail-shared-ui-camera-dialog (capturedPhoto)="paymentCardPhotoCaptured($event)" />
+  </ng-template>
+}

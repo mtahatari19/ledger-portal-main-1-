@@ -1,0 +1,36 @@
+@if (isHandset$ | async) {
+  <mat-toolbar>
+    <div class="grid w-full grid-cols-5 gap-2">
+      <div class="col-span-1 flex items-center justify-start">
+        @if (showCloseButton) {
+          <button
+            mat-icon-button
+            mat-dialog-close
+            color="primary"
+            matTooltip="بستن"
+            i18n-matTooltip="متن راهنمای دکمه بستن فول اسکرین دیالوگ">
+            <mat-icon svgIcon="close" ledgerPortalSvgIconType="fill" />
+          </button>
+        }
+      </div>
+      <div class="col-span-3 flex items-center justify-center">
+        <h1 class="mat-h4 !mb-0 whitespace-normal break-words text-center">
+          <ng-container [ngTemplateOutlet]="dialogTitle" />
+        </h1>
+      </div>
+      <div class="col-span-1 flex items-center justify-end">
+        <ng-content select="[full-screen-dialog-action]"></ng-content>
+      </div>
+    </div>
+  </mat-toolbar>
+  @if (!borderless) {
+    <mat-divider />
+  }
+}
+@if ((isHandset$ | async) === false) {
+  <ng-container [ngTemplateOutlet]="dialogTitle" />
+}
+<ng-content></ng-content>
+<ng-template #dialogTitle>
+  <ng-content select="[mat-dialog-title]"></ng-content>
+</ng-template>

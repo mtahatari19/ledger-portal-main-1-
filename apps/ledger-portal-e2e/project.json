@@ -1,0 +1,29 @@
+{
+  "name": "ledger-portal-e2e",
+  "$schema": "../../node_modules/nx/schemas/project-schema.json",
+  "sourceRoot": "apps/ledger-portal-e2e/src",
+  "projectType": "application",
+  "tags": [],
+  "implicitDependencies": ["ledger-portal"],
+  "targets": {
+    "e2e": {
+      "executor": "@nx/cypress:cypress",
+      "options": {
+        "cypressConfig": "apps/ledger-portal-e2e/cypress.config.ts",
+        "devServerTarget": "ledger-portal:serve:development",
+        "testingType": "e2e"
+      },
+      "configurations": {
+        "production": {
+          "devServerTarget": "ledger-portal:serve:production"
+        },
+        "ci": {
+          "devServerTarget": "ledger-portal:serve-static"
+        }
+      }
+    },
+    "lint": {
+      "executor": "@nx/eslint:lint"
+    }
+  }
+}

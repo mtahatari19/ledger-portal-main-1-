@@ -1,0 +1,27 @@
+<mat-sidenav-container class="h-full max-md:[--mat-sidenav-content-background-color:theme(colors.card)]">
+  <div class="not-found-container h-full !w-full">
+    <mat-card
+      [ngClass]="(isHandsetScreen$ | async) ? 'h-full' : 'min-h-[60vh]'"
+      class="widget-card max-md-widget justify-center"
+      role="main">
+      <mat-card-content>
+        <div class="flex flex-col items-center justify-center">
+          <div #lottieContainer></div>
+          <p i18n="عنوان تاسف|عنوان پیدا نشدن صفحه مورد نظر در ledger-portal@@ledger-portal-error-404-not-found" class="mt-5">
+            "متاسفانه صفحه مورد نظرتون رو پیدا نکردیم"
+          </p>
+        </div>
+      </mat-card-content>
+      <mat-card-actions>
+        <button
+          mat-stroked-button
+          i18n="@@متوجه شدم|عنوان متوجه شدم در صفحه خظا@@shared-ui-error-pages-understand"
+          color="primary"
+          class="flex w-full"
+          (click)="goBack()">
+          متوجه شدم
+        </button>
+      </mat-card-actions>
+    </mat-card>
+  </div>
+</mat-sidenav-container>

@@ -1,0 +1,10 @@
+ledger-portal-iban-vendor {
+  @apply inline-flex content-center items-center;
+
+  .bank-logo {
+    background-repeat: no-repeat;
+    background-size: contain;
+    background-position: center;
+    display: inline-block;
+  }
+}

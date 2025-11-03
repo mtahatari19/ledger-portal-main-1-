@@ -1,0 +1,20 @@
+{
+  "name": "shared-data-vendor",
+  "$schema": "../../../../node_modules/nx/schemas/project-schema.json",
+  "projectType": "library",
+  "sourceRoot": "libs/shared/data/vendor/src",
+  "prefix": "ledger-portal",
+  "tags": [],
+  "targets": {
+    "test": {
+      "executor": "@nx/jest:jest",
+      "outputs": ["{workspaceRoot}/coverage/libs/shared/data/vendor"],
+      "options": {
+        "jestConfig": "libs/shared/data/vendor/jest.config.ts"
+      }
+    },
+    "lint": {
+      "executor": "@nx/eslint:lint"
+    }
+  }
+}

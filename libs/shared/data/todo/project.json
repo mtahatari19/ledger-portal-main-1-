@@ -1,0 +1,20 @@
+{
+  "name": "shared-data-todo",
+  "$schema": "../../../../node_modules/nx/schemas/project-schema.json",
+  "projectType": "library",
+  "sourceRoot": "libs/shared/data/todo/src",
+  "prefix": "ledger-portal",
+  "tags": [],
+  "targets": {
+    "test": {
+      "executor": "@nx/jest:jest",
+      "outputs": ["{workspaceRoot}/coverage/libs/shared/data/todo"],
+      "options": {
+        "jestConfig": "libs/shared/data/todo/jest.config.ts"
+      }
+    },
+    "lint": {
+      "executor": "@nx/eslint:lint"
+    }
+  }
+}

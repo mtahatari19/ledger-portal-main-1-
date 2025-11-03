@@ -1,0 +1,15 @@
+<div class="flex items-center">
+  @if (!hideIcons) {
+    <mat-icon svgIcon="sun" />
+  }
+  <mat-slide-toggle
+    color="primary"
+    class="!ms-1"
+    aria-label="حالت روز"
+    i18n-aria-label="عنوان دکمه تغییر حالت تم"
+    [checked]="checked"
+    (change)="valueChange($event)"></mat-slide-toggle>
+  @if (!hideIcons) {
+    <mat-icon svgIcon="moon" />
+  }
+</div>

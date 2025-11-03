@@ -1,0 +1,20 @@
+{
+  "name": "shared-ui-humanize-hours",
+  "$schema": "../../../../node_modules/nx/schemas/project-schema.json",
+  "projectType": "library",
+  "sourceRoot": "libs/shared/ui/humanize-hours/src",
+  "prefix": "ledger-portal",
+  "tags": [],
+  "targets": {
+    "test": {
+      "executor": "@nx/jest:jest",
+      "outputs": ["{workspaceRoot}/coverage/libs/shared/ui/humanize-hours"],
+      "options": {
+        "jestConfig": "libs/shared/ui/humanize-hours/jest.config.ts"
+      }
+    },
+    "lint": {
+      "executor": "@nx/eslint:lint"
+    }
+  }
+}

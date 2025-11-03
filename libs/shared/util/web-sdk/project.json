@@ -1,0 +1,19 @@
+{
+  "name": "shared-util-web-sdk",
+  "$schema": "..\\..\\..\\..\\node_modules\\nx\\schemas\\project-schema.json",
+  "sourceRoot": "libs/shared/util/web-sdk/src",
+  "projectType": "library",
+  "tags": [],
+  "targets": {
+    "lint": {
+      "executor": "@nx/eslint:lint"
+    },
+    "test": {
+      "executor": "@nx/jest:jest",
+      "outputs": ["{workspaceRoot}/coverage/libs/shared/util/web-sdk"],
+      "options": {
+        "jestConfig": "libs/shared/util/web-sdk/jest.config.ts"
+      }
+    }
+  }
+}

@@ -1,0 +1,40 @@
+@if ((isHandsetScreen$ | async) === false) {
+  <mat-card-header class="items-center !pb-4">
+    <div mat-card-avatar class="text-primary border-foreground/10 flex items-center justify-center border border-solid">
+      <ng-content select="[desktopIcon]"></ng-content>
+    </div>
+    <mat-card-title role="heading">
+      <ng-container [ngTemplateOutlet]="title" />
+    </mat-card-title>
+    <mat-card-subtitle>
+      <ng-content select="[desktopSubtitle]"></ng-content>
+    </mat-card-subtitle>
+    <div class="flex items-center gap-2">
+      <ng-content select="[desktopActions]"></ng-content>
+    </div>
+  </mat-card-header>
+  <mat-divider></mat-divider>
+}
+@if ((isHandsetScreen$ | async) === true) {
+  <mat-toolbar
+    class="bg-card border-foreground/10 z-20 h-[var(--mat-toolbar-mobile-height)]"
+    [ngClass]="!borderless() ? 'border-b border-solid' : ''">
+    <div class="grid w-full grid-cols-5 gap-2">
+      <div class="col-span-1 flex items-center justify-start">
+        <ng-content select="[mobileStart]"></ng-content>
+      </div>
+      <div class="col-span-3 flex items-center justify-center">
+        <h1 class="mat-h4 !mb-0 whitespace-normal break-words text-center">
+          <ng-container [ngTemplateOutlet]="title" />
+        </h1>
+      </div>
+      <div class="col-span-1 flex items-center justify-end">
+        <ng-content select="[mobileEnd]"></ng-content>
+      </div>
+    </div>
+  </mat-toolbar>
+}
+
+<ng-template #title>
+  <ng-content select="[title]"></ng-content>
+</ng-template>

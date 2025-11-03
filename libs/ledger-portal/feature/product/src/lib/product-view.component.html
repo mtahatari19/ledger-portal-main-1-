@@ -1,0 +1,95 @@
+<div class="min-h-screen p-6">
+  <div class="mb-8">
+    <h2 class="!mb-8 text-2xl font-bold">
+      مشاهده محصول
+    </h2>
+    <ledger-portal-shared-ui-breadcrumb />
+    <h3 class="!mt-8">
+      مشاهده اطلاعات محصول
+    </h3>
+  </div>
+
+  <div>
+    <form [formGroup]="productForm" class="space-y-6">
+      <div class="grid grid-cols-1 gap-6 md:grid-cols-2">
+        <mat-form-field appearance="outline" class="w-full">
+          <mat-label>کد محصول</mat-label>
+          <input
+            matInput
+            formControlName="code"
+            type="text"
+            placeholder="کد محصول را وارد کنید"
+          />
+        </mat-form-field>
+
+        <mat-form-field appearance="outline" class="w-full">
+          <mat-label>نام فارسی</mat-label>
+          <input
+            matInput
+            formControlName="name"
+            type="text"
+            placeholder="نام فارسی محصول را وارد کنید"
+          />
+        </mat-form-field>
+      </div>
+
+      <div class="grid grid-cols-1 gap-6 md:grid-cols-2">
+        <mat-form-field appearance="outline" class="w-full">
+          <mat-label>نام انگلیسی</mat-label>
+          <input
+            matInput
+            formControlName="englishName"
+            type="text"
+            placeholder="نام انگلیسی محصول را وارد کنید"
+          />
+        </mat-form-field>
+
+        <mat-form-field appearance="outline" class="w-full">
+          <mat-label>نوع محصول</mat-label>
+          <mat-select formControlName="productType">
+            @for (type of productTypes; track type.value) {
+              <mat-option [value]="type.value">
+                {{ type.label }}
+              </mat-option>
+            }
+          </mat-select>
+        </mat-form-field>
+      </div>
+
+      <div class="grid grid-cols-1 gap-6 md:grid-cols-2">
+        <mat-form-field appearance="outline" class="w-full h-[40px]">
+          <mat-label>وضعیت</mat-label>
+          <mat-select formControlName="status">
+            @for (status of statuses; track status.value) {
+              <mat-option [value]="status.value">
+                {{ status.label }}
+              </mat-option>
+            }
+          </mat-select>
+        </mat-form-field>
+
+        <mat-form-field appearance="outline" class="w-full">
+          <mat-label>توضیحات</mat-label>
+          <textarea
+            matInput
+            formControlName="description"
+            rows="4"
+            placeholder="توضیحات محصول را وارد کنید"
+          ></textarea>
+        </mat-form-field>
+      </div>
+
+      <div class="flex justify-end space-x-4 space-x-reverse pt-6">
+        <button
+          mat-stroked-button
+          type="button"
+          (click)="goBack()"
+          class="px-8 py-2"
+        >
+          بازگشت
+        </button>
+      </div>
+    </form>
+  </div>
+</div>
+

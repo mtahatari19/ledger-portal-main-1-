@@ -1,0 +1,79 @@
+<div class="min-h-screen p-6">
+  <div class="mb-8">
+    <ledger-portal-shared-ui-breadcrumb></ledger-portal-shared-ui-breadcrumb>
+  </div>
+
+  <div class="mx-4">
+    <h3>
+      مشاهده اطلاعات گروه حساب
+    </h3>
+    <form [formGroup]="accountGroupForm" class="space-y-6">
+      <div class="grid grid-cols-1 gap-6 md:grid-cols-2">
+        <mat-form-field appearance="outline" class="w-full">
+          <mat-label i18n="کد گروه حساب">کد گروه حساب</mat-label>
+          <input
+            matInput
+            formControlName="code"
+            type="text"
+            placeholder="کد گروه حساب را وارد کنید"
+          />
+        </mat-form-field>
+
+        <mat-form-field appearance="outline" class="w-full">
+          <mat-label i18n="نام">نام</mat-label>
+          <input
+            matInput
+            formControlName="name"
+            type="text"
+            placeholder="نام گروه حساب را وارد کنید"
+          />
+        </mat-form-field>
+      </div>
+
+      <div class="grid grid-cols-1 gap-6 md:grid-cols-2">
+        <mat-form-field appearance="outline" class="w-full">
+          <mat-label i18n="نام انگلیسی">نام (انگلیسی)</mat-label>
+          <input
+            matInput
+            formControlName="englishName"
+            type="text"
+            placeholder="نام انگلیسی گروه حساب را وارد کنید"
+          />
+        </mat-form-field>
+
+        <mat-form-field appearance="outline" class="w-full">
+          <mat-label i18n="نوع گروه">نوع گروه</mat-label>
+          <mat-select formControlName="groupType">
+            <mat-option *ngFor="let type of groupTypes" [value]="type.value">
+              {{ type.label }}
+            </mat-option>
+          </mat-select>
+        </mat-form-field>
+      </div>
+
+      <div class="grid grid-cols-1 gap-6 md:grid-cols-2">
+        <mat-form-field appearance="outline" class="w-full h-[40px]">
+          <mat-label i18n="وضعیت">وضعیت</mat-label>
+          <mat-select formControlName="status">
+            <mat-option *ngFor="let status of statuses" [value]="status.value">
+              {{ status.label }}
+            </mat-option>
+          </mat-select>
+        </mat-form-field>
+      </div>
+
+      <div class="flex justify-end space-x-4 space-x-reverse pt-6">
+        <button
+          mat-stroked-button
+          type="button"
+          (click)="goBack()"
+          class="px-8 py-2"
+          i18n="دکمه بازگشت"
+        >
+          بازگشت
+        </button>
+      </div>
+    </form>
+  </div>
+</div>
+

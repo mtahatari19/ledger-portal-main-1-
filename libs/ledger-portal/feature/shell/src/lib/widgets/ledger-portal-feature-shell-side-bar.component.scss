@@ -1,0 +1,295 @@
+  :host {
+  display: block;
+  height: 100%;
+}
+
+// Logo section
+mat-nav-list {
+  padding: 1rem 0;
+
+  .cursor-pointer {
+    padding: 0.5rem 1rem;
+    border-radius: 0.5rem;
+    transition: background-color 0.2s ease;
+
+    &:hover {
+      background-color: rgba(0, 0, 0, 0.04);
+    }
+  }
+}
+
+// Profile section
+.profile-section {
+  padding: 1.5rem 1rem;
+  text-align: center;
+
+  .profile-avatar {
+    width: 72px;
+    height: 72px;
+    border-radius: 50%;
+    margin: 0 auto 1rem;
+    background-color: #e0e0e0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    mat-icon {
+      color: #666;
+      font-size: 2rem;
+    }
+  }
+
+  .profile-name {
+    font-size: 1rem;
+    font-weight: 600;
+    color: #333;
+    margin-bottom: 0.25rem;
+  }
+
+  .profile-role {
+    font-size: 0.875rem;
+    color: #666;
+  }
+}
+
+// Menu sections
+.menu-section {
+  padding: 0.5rem 1rem 1rem;
+
+  .section-title {
+    font-size: 0.875rem;
+    color: #999;
+    margin-bottom: 0.75rem;
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+}
+
+// Dashboard button
+.dashboard-link {
+  display: block;
+  margin: 0.5rem 1rem;
+
+  mat-expansion-panel {
+    background-color: transparent !important;
+    color: #333 !important;
+    border-radius: 0.5rem !important;
+    box-shadow: none !important;
+    transition: background-color 0.2s ease;
+
+    mat-expansion-panel-header {
+      background-color: transparent !important;
+      color: #333 !important;
+      padding: 0.75rem 1rem !important;
+      border-radius: 0.5rem !important;
+      transition: background-color 0.2s ease, color 0.2s ease;
+
+      &:hover {
+        background-color: rgba(0, 0, 0, 0.04) !important;
+      }
+
+      mat-icon {
+        color: #666 !important;
+        margin-right: 0.75rem;
+        transition: color 0.2s ease;
+      }
+
+      span {
+        color: #333 !important;
+        font-weight: 400;
+        transition: color 0.2s ease;
+      }
+
+      .mat-expansion-indicator {
+        display: none !important;
+      }
+    }
+  }
+
+  // Active state
+  &.active {
+    mat-expansion-panel {
+      background-color: #5C82D1 !important;
+      color: white !important;
+
+      mat-expansion-panel-header {
+        background-color: transparent !important;
+        color: white !important;
+
+        &:hover {
+          background-color: rgba(0, 0, 0, 0.1) !important;
+        }
+
+        mat-icon {
+          color: white !important;
+        }
+
+        span {
+          color: white !important;
+          font-weight: 500;
+        }
+      }
+    }
+  }
+}
+
+// Services menu items
+.services-menu {
+  margin: 0.5rem 1rem;
+
+  // Direct link items (like basic information)
+  > a {
+    display: block;
+    margin-bottom: 0.5rem;
+
+    mat-expansion-panel {
+      background-color: transparent !important;
+      color: #333 !important;
+      border-radius: 0.5rem !important;
+      box-shadow: none !important;
+      transition: background-color 0.2s ease;
+
+      mat-expansion-panel-header {
+        background-color: transparent !important;
+        color: #333 !important;
+        padding: 0.75rem 1rem !important;
+        border-radius: 0.5rem !important;
+        transition: background-color 0.2s ease, color 0.2s ease;
+
+        &:hover {
+          background-color: rgba(0, 0, 0, 0.04) !important;
+        }
+
+        mat-icon {
+          color: #666 !important;
+          margin-right: 0.75rem;
+          transition: color 0.2s ease;
+        }
+
+        span {
+          color: #333 !important;
+          font-weight: 400;
+          transition: color 0.2s ease;
+        }
+
+        .mat-expansion-indicator {
+          display: none !important;
+        }
+      }
+    }
+
+    // Active state for direct links
+    &.active {
+      mat-expansion-panel {
+        background-color: #5C82D1 !important;
+        color: white !important;
+
+        mat-expansion-panel-header {
+          background-color: transparent !important;
+          color: white !important;
+
+          &:hover {
+            background-color: rgba(0, 0, 0, 0.1) !important;
+          }
+
+          mat-icon {
+            color: white !important;
+          }
+
+          span {
+            color: white !important;
+            font-weight: 500;
+          }
+        }
+      }
+    }
+  }
+
+  // Expansion panel groups
+  mat-expansion-panel {
+    background-color: transparent !important;
+    color: #333 !important;
+    border-radius: 0.5rem !important;
+    box-shadow: none !important;
+    margin-bottom: 0.5rem;
+
+    mat-expansion-panel-header {
+      background-color: transparent !important;
+      color: #333 !important;
+      padding: 0.75rem 1rem !important;
+      border-radius: 0.5rem !important;
+      transition: background-color 0.2s ease;
+
+      &:hover {
+        background-color: rgba(0, 0, 0, 0.04) !important;
+      }
+
+      mat-icon {
+        color: #666 !important;
+        margin-right: 0.75rem;
+      }
+
+      span {
+        color: #333 !important;
+        font-weight: 400;
+      }
+
+      .mat-expansion-indicator {
+        color: #666 !important;
+      }
+    }
+
+    mat-nav-list {
+      background-color: transparent !important;
+      padding: 0 !important;
+
+      a {
+        color: #666 !important;
+        padding: 0.5rem 1rem 0.5rem 3rem !important;
+        font-size: 0.875rem;
+
+        &:hover {
+          background-color: rgba(0, 0, 0, 0.04) !important;
+        }
+
+        &.active {
+          background-color: rgba(92, 130, 209, 0.1) !important;
+          color: #5C82D1 !important;
+          font-weight: 500;
+        }
+      }
+    }
+  }
+}
+
+// Override Material Design defaults
+mat-accordion {
+  background-color: transparent !important;
+  box-shadow: none !important;
+}
+
+mat-nav-list {
+  background-color: transparent !important;
+}
+
+// Responsive adjustments
+@media (max-width: 768px) {
+  .profile-section {
+    padding: 1rem 0.5rem;
+
+    .profile-avatar {
+      width: 60px;
+      height: 60px;
+    }
+  }
+
+  .menu-section {
+    padding: 0.5rem 0.75rem 1rem;
+  }
+
+  .dashboard-link,
+  .services-menu {
+    margin: 0.5rem 0.75rem;
+  }
+}

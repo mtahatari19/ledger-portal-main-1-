@@ -1,0 +1,7 @@
+mat-chip-listbox {
+  &.nowrap {
+    > [role='presentation'] {
+      @apply flex-nowrap overflow-auto #{!important};
+    }
+  }
+}

@@ -1,0 +1,10 @@
+ledger-portal-bill-type-vendor {
+  @apply inline-flex content-center;
+
+  .bill-logo {
+    background-repeat: no-repeat;
+    background-size: contain;
+    background-position-y: center;
+    display: inline-block;
+  }
+}

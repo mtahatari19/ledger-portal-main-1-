@@ -1,0 +1,109 @@
+{
+  "name": "ledger-portal",
+  "$schema": "../../node_modules/nx/schemas/project-schema.json",
+  "projectType": "application",
+  "prefix": "ledger-portal",
+  "i18n": {
+    "sourceLocale": "fa",
+    "locales": {
+      "en": "apps/ledger-portal/src/locale/messages.en.xlf",
+      "fa-AZ": "apps/ledger-portal/src/locale/messages.fa-AZ.xlf",
+      "ar": "apps/ledger-portal/src/locale/messages.ar.xlf"
+    }
+  },
+  "sourceRoot": "apps/ledger-portal/src",
+  "tags": [],
+  "targets": {
+    "build": {
+      "executor": "@angular-devkit/build-angular:browser",
+      "outputs": ["{options.outputPath}"],
+      "options": {
+        "outputPath": "dist/apps/ledger-portal",
+        "index": "apps/ledger-portal/src/index.html",
+        "main": "apps/ledger-portal/src/main.ts",
+        "polyfills": ["apps/ledger-portal/src/polyfills.ts"],
+        "tsConfig": "apps/ledger-portal/tsconfig.app.json",
+        "assets": [
+          "apps/ledger-portal/src/manifest.webmanifest",
+          "apps/ledger-portal/src/favicon.icon",
+          "apps/ledger-portal/src/assets",
+          {
+            "input": "libs/shared/assets/src/assets",
+            "glob": "**/*",
+            "output": "assets"
+          },
+          {
+            "input": "libs/ledger-portal/assets/src/assets",
+            "glob": "**/*",
+            "output": "assets"
+          }
+        ],
+        "styles": ["apps/ledger-portal/src/styles.scss"],
+        "scripts": [],
+        "allowedCommonJsDependencies": ["moment", "jalali-moment", "lottie-web"]
+      },
+      "configurations": {
+        "production": {
+          "budgets": [
+            {
+              "type": "initial",
+              "maximumWarning": "500kb",
+              "maximumError": "15mb"
+            },
+            {
+              "type": "anyComponentStyle",
+              "maximumWarning": "6kb",
+              "maximumError": "8kb"
+            }
+          ],
+          "outputHashing": "all"
+        },
+        "development": {
+          "outputHashing": "none",
+          "localize": false,
+          "aot": false,
+          "buildOptimizer": false,
+          "optimization": false,
+          "extractLicenses": false,
+          "sourceMap": true,
+          "namedChunks": true
+        }
+      },
+      "defaultConfiguration": "production"
+    },
+    "serve": {
+      "executor": "@angular-devkit/build-angular:dev-server",
+      "configurations": {
+        "production": {
+          "buildTarget": "ledger-portal:build:production"
+        },
+        "development": {
+          "buildTarget": "ledger-portal:build:development"
+        }
+      },
+      "defaultConfiguration": "development"
+    },
+    "extract-i18n": {
+      "executor": "@angular-devkit/build-angular:extract-i18n",
+      "options": {
+        "buildTarget": "ledger-portal:build"
+      }
+    },
+    "lint": {
+      "executor": "@nx/eslint:lint"
+    },
+    "test": {
+      "executor": "@nx/jest:jest",
+      "outputs": ["{workspaceRoot}/coverage/{projectRoot}"],
+      "options": {
+        "jestConfig": "apps/ledger-portal/jest.config.ts"
+      }
+    },
+    "serve-static": {
+      "executor": "@nx/web:file-server",
+      "options": {
+        "buildTarget": "ledger-portal:build"
+      }
+    }
+  }
+}

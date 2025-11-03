@@ -1,0 +1,374 @@
+name: Frontend CI/CD 
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "**/package.json"
+      - "**/src/**"
+      - ".github/workflows/frontend.yml"
+  pull_request:
+    branches: [main]
+    paths:
+      - "**/package.json"
+      - "**/src/**"
+      - ".github/workflows/frontend.yml"
+
+env:
+  NODE_VERSION: "20"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: frontend-deploy-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  pr-checks:
+    if: ${{ github.event_name == 'pull_request' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      - run: sudo apt-get update -y && sudo apt-get install -y jq
+      - name: Locate project dir
+        id: loc
+        shell: bash
+        run: |
+          set -euo pipefail
+          mapfile -t PKG_DIRS < <(find . -type f -name package.json -not -path "*/node_modules/*" -printf '%h\n' | sort -u)
+          for guess in frontend web app ui client apps/frontend apps/web packages/frontend packages/web .; do
+            for p in "${PKG_DIRS[@]}"; do
+              if [[ "$p" == "./$guess" || "$p" == "$guess" ]]; then
+                echo "dir=${p#./}" >> "$GITHUB_OUTPUT"; exit 0
+              fi
+            done
+          done
+          echo "dir=$(printf "%s\n" "${PKG_DIRS[@]}" | head -n1 | sed "s#^\./##")" >> "$GITHUB_OUTPUT"
+      - name: Cache (npm & node_modules)
+        id: cache-deps
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.npm
+            ${{ steps.loc.outputs.dir }}/node_modules
+          key: ${{ runner.os }}-npm-${{ hashFiles('**/package-lock.json', '**/npm-shrinkwrap.json') }}
+          restore-keys: |
+            ${{ runner.os }}-npm-
+      - name: Install
+        working-directory: ${{ steps.loc.outputs.dir }}
+        env:
+          HUSKY: "0"
+          CI: "true"
+          NPM_CONFIG_PROGRESS: "false"
+          NPM_CONFIG_AUDIT: "false"
+          NPM_CONFIG_FUND: "false"
+        run: |
+          if [ ! -f package-lock.json ] && [ ! -f npm-shrinkwrap.json ]; then
+            npm install --no-audit --no-fund
+          else
+            npm ci --prefer-offline --no-audit --no-fund
+          fi
+      - name: Cache (framework caches)
+        uses: actions/cache@v4
+        with:
+          path: |
+            ${{ steps.loc.outputs.dir }}/.next/cache
+            ${{ steps.loc.outputs.dir }}/node_modules/.cache
+            ${{ steps.loc.outputs.dir }}/.angular/cache
+            ${{ steps.loc.outputs.dir }}/.vite
+          key: ${{ runner.os }}-fe-cache-${{ hashFiles('**/package-lock.json', '**/npm-shrinkwrap.json', '**/vite.config.*', '**/next.config.*', '**/angular.json') }}
+          restore-keys: |
+            ${{ runner.os }}-fe-cache-
+      - name: Lint (if present)
+        working-directory: ${{ steps.loc.outputs.dir }}
+        shell: bash
+        run: |
+          if jq -e '.scripts | has("lint")' package.json >/dev/null 2>&1; then
+            npm run lint
+          else
+            echo "no lint script"
+          fi
+      - name: Test (if present)
+        working-directory: ${{ steps.loc.outputs.dir }}
+        shell: bash
+        run: |
+          if jq -e '.scripts | has("test")' package.json >/dev/null 2>&1; then
+            npm test --if-present --silent || true
+          else
+            echo "no test script"
+          fi
+      - name: Build
+        working-directory: ${{ steps.loc.outputs.dir }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if jq -e '.scripts.build // empty' package.json >/dev/null 2>&1; then
+            npm run build
+          else
+            if jq -e '(.dependencies//{} + .devDependencies//{}) | has("@angular/core")' package.json >/dev/null; then
+              npx ng build --configuration production || npx nx build || npm run build
+            elif jq -e '(.dependencies//{} + .devDependencies//{}) | has("next")' package.json >/dev/null; then
+              npx next build
+              if jq -e '.scripts | has("export")' package.json >/dev/null 2>&1; then
+                npm run export
+              fi
+            elif jq -e '(.dependencies//{} + .devDependencies//{}) | has("vite")' package.json >/dev/null; then
+              npx vite build
+            elif jq -e '(.dependencies//{} + .devDependencies//{}) | has("react-scripts")' package.json >/dev/null 2>&1; then
+              npx react-scripts build
+            else
+              echo "No build script and no known framework."; exit 1
+            fi
+          fi
+
+  build:
+    if: ${{ github.event_name == 'push' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    outputs:
+      tar: ${{ steps.pack.outputs.tar }}
+      dir: ${{ steps.loc.outputs.dir }}
+      outdir: ${{ steps.build.outputs.dir }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      - run: sudo apt-get update -y && sudo apt-get install -y jq rsync
+      - name: Locate project dir
+        id: loc
+        shell: bash
+        run: |
+          set -euo pipefail
+          mapfile -t PKG_DIRS < <(find . -type f -name package.json -not -path "*/node_modules/*" -printf '%h\n' | sort -u)
+          for guess in frontend web app ui client apps/frontend apps/web packages/frontend packages/web .; do
+            for p in "${PKG_DIRS[@]}"; do
+              if [[ "$p" == "./$guess" || "$p" == "$guess" ]]; then
+                echo "dir=${p#./}" >> "$GITHUB_OUTPUT"; exit 0
+              fi
+            done
+          done
+          echo "dir=$(printf "%s\n" "${PKG_DIRS[@]}" | head -n1 | sed "s#^\./##")" >> "$GITHUB_OUTPUT"
+      - name: Cache (npm & node_modules)
+        id: cache-deps
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.npm
+            ${{ steps.loc.outputs.dir }}/node_modules
+          key: ${{ runner.os }}-npm-${{ hashFiles('**/package-lock.json', '**/npm-shrinkwrap.json') }}
+          restore-keys: |
+            ${{ runner.os }}-npm-
+      - name: Install
+        working-directory: ${{ steps.loc.outputs.dir }}
+        env:
+          HUSKY: "0"
+          CI: "true"
+          NPM_CONFIG_PROGRESS: "false"
+          NPM_CONFIG_AUDIT: "false"
+          NPM_CONFIG_FUND: "false"
+        run: |
+          if [ ! -f package-lock.json ] && [ ! -f npm-shrinkwrap.json ]; then
+            npm install --no-audit --no-fund
+          else
+            npm ci --prefer-offline --no-audit --no-fund
+          fi
+      - name: Cache (framework caches)
+        uses: actions/cache@v4
+        with:
+          path: |
+            ${{ steps.loc.outputs.dir }}/.next/cache
+            ${{ steps.loc.outputs.dir }}/node_modules/.cache
+            ${{ steps.loc.outputs.dir }}/.angular/cache
+            ${{ steps.loc.outputs.dir }}/.vite
+          key: ${{ runner.os }}-fe-cache-${{ hashFiles('**/package-lock.json', '**/npm-shrinkwrap.json', '**/vite.config.*', '**/next.config.*', '**/angular.json') }}
+          restore-keys: |
+            ${{ runner.os }}-fe-cache-
+      - name: Build
+        id: build
+        working-directory: ${{ steps.loc.outputs.dir }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if jq -e '.scripts.build // empty' package.json >/dev/null 2>&1; then
+            npm run build
+          else
+            if jq -e '(.dependencies//{} + .devDependencies//{}) | has("@angular/core")' package.json >/dev/null; then
+              npx ng build --configuration production || npx nx build || npm run build
+            elif jq -e '(.dependencies//{} + .devDependencies//{}) | has("next")' package.json >/dev/null; then
+              npx next build
+              if jq -e '.scripts | has("export")' package.json >/dev/null 2>&1; then
+                npm run export
+              fi
+            elif jq -e '(.dependencies//{} + .devDependencies//{}) | has("vite")' package.json >/dev/null; then
+              npx vite build
+            elif jq -e '(.dependencies//{} + .devDependencies//{}) | has("react-scripts")' package.json >/dev/null 2>&1; then
+              npx react-scripts build
+            else
+              echo "No build script and no known framework."
+              exit 1
+            fi
+          fi
+          OUT="build"
+          if [ -f angular.json ]; then
+            DEFAULT_PROJECT=$(jq -r '.defaultProject // empty' angular.json)
+            [ -z "$DEFAULT_PROJECT" -o "$DEFAULT_PROJECT" = "null" ] && DEFAULT_PROJECT=$(jq -r '.projects | keys[0]' angular.json)
+            OUT=$(jq -r --arg p "$DEFAULT_PROJECT" '.projects[$p].architect.build.options.outputPath // .projects[$p].targets.build.options.outputPath // "dist"' angular.json)
+          elif [ -d dist ]; then
+            OUT="dist"
+          elif [ -d out ]; then
+            OUT="out"
+          elif [ -d .next ]; then
+            OUT=".next"
+          elif [ -d build ]; then
+            OUT="build"
+          fi
+          echo "dir=$OUT" >> "$GITHUB_OUTPUT"
+      - name: Pack
+        id: pack
+        shell: bash
+        run: |
+          set -euo pipefail
+          TAR="frontend_${GITHUB_SHA}.tar.gz"
+          tar -C "${{ steps.loc.outputs.dir }}/${{ steps.build.outputs.dir }}" -czf "$TAR" .
+          echo "tar=$TAR" >> "$GITHUB_OUTPUT"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.pack.outputs.tar }}
+          path: ${{ steps.pack.outputs.tar }}
+          if-no-files-found: error
+          retention-days: 7
+
+  deploy:
+    if: ${{ github.event_name == 'push' }}
+    runs-on: ubuntu-latest
+    needs: build
+    timeout-minutes: 20
+    env:
+      ARTIFACT_TAR: ${{ needs.build.outputs.tar }}
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: ${{ env.ARTIFACT_TAR }}
+          path: .
+      - uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.PI_HOST }}
+          username: ${{ secrets.PI_USER }}
+          key: ${{ secrets.PI_SSH_KEY }}
+          port: ${{ secrets.DEPLOY_PORT }}
+          source: ${{ env.ARTIFACT_TAR }}
+          target: /tmp/
+          timeout: 180s
+          command_timeout: 15m
+      - uses: appleboy/ssh-action@v1.0.3
+        env:
+          FRONTEND_ROOT: ${{ vars.FRONTEND_ROOT }}
+          GITHUB_SHA: ${{ github.sha }}
+          ARTIFACT_TAR: ${{ env.ARTIFACT_TAR }}
+        with:
+          host: ${{ secrets.PI_HOST }}
+          username: ${{ secrets.PI_USER }}
+          key: ${{ secrets.PI_SSH_KEY }}
+          port: ${{ secrets.DEPLOY_PORT }}
+          envs: FRONTEND_ROOT,GITHUB_SHA,ARTIFACT_TAR
+          timeout: 180s
+          script_stop: true
+          script: |
+            set -euo pipefail
+            TAR="/tmp/$ARTIFACT_TAR"
+            ROOT="${FRONTEND_ROOT:-/srv/www/frontend}"
+            RELEASES="$ROOT/releases"
+            NEW="$RELEASES/$GITHUB_SHA"
+            mkdir -p "$NEW"
+            tar -C "$NEW" -xzf "$TAR"
+            rm -f "$TAR"
+            TARGET=$(find "$NEW" -maxdepth 4 -type f -name index.html -printf '%h\n' | head -n1 || true)
+            if [ -n "$TARGET" ] && [ "$TARGET" != "$NEW" ]; then
+              TMP=$(mktemp -d)
+              rsync -a "$TARGET"/ "$TMP"/
+              rsync -a --delete "$TMP"/ "$NEW"/
+              rm -rf "$TMP"
+            fi
+            ln -sfn "$NEW" "$ROOT/current"
+            (ls -1dt "$RELEASES"/* 2>/dev/null | tail -n +6 | xargs -r rm -rf) || true
+            if command -v nginx >/dev/null 2>&1; then
+              NGINX_BIN="$(command -v nginx)"
+            elif [ -x /usr/sbin/nginx ]; then
+              NGINX_BIN="/usr/sbin/nginx"
+            else
+              NGINX_BIN=""
+            fi
+            if [ -n "$NGINX_BIN" ]; then
+              sudo -n "$NGINX_BIN" -t && sudo -n systemctl reload nginx || true
+            else
+              if systemctl status apache2 >/dev/null 2>&1; then
+                sudo -n apachectl configtest && sudo -n systemctl reload apache2 || true
+              fi
+            fi
+
+  verify:
+    if: ${{ github.event_name == 'push' }}
+    runs-on: ubuntu-latest
+    needs: deploy
+    timeout-minutes: 5
+    env:
+      SITE_URL: ${{ vars.SITE_URL }}
+    steps:
+      - name: Resolve URL
+        id: url
+        shell: bash
+        run: |
+          set -euo pipefail
+          HOST="${{ secrets.PI_HOST }}"
+          if [ -n "${SITE_URL:-}" ]; then
+            echo "url=$SITE_URL" >> "$GITHUB_OUTPUT"
+          else
+            echo "url=https://$HOST/" >> "$GITHUB_OUTPUT"
+            echo "fallback=http://$HOST/" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Quick TCP probe (80/443)
+        if: ${{ !env.SITE_URL }}
+        shell: bash
+        run: |
+          set +e
+          H="${{ secrets.PI_HOST }}"
+          (echo > /dev/tcp/${H}/80)  >/dev/null 2>&1 && echo "Port 80: OPEN"  || echo "Port 80: CLOSED"
+          (echo > /dev/tcp/${H}/443) >/dev/null 2>&1 && echo "Port 443: OPEN" || echo "Port 443: CLOSED"
+          true
+      - name: Fetch homepage
+        id: fetch
+        shell: bash
+        run: |
+          set -euo pipefail
+          URL="${{ steps.url.outputs.url }}"
+          FB="${{ steps.url.outputs.fallback }}"
+          try_curl () {
+            local U="$1"
+            echo "GET $U"
+            curl -fsSL --connect-timeout 10 --max-time 20 -D headers.txt -o index.html "$U"
+            echo "Status:" && sed -n '1p' headers.txt || true
+            echo "Content-Type:" && grep -i '^content-type:' headers.txt || true
+            echo "Title:" && grep -o '<title>[^<]*</title>' index.html || true
+          }
+          if ! try_curl "$URL"; then
+            if [ -n "${FB:-}" ]; then
+              try_curl "$FB"
+            else
+              exit 28
+            fi
+          fi
+      - uses: actions/upload-artifact@v4
+        with:
+          name: deployed-homepage
+          path: |
+            index.html
+            headers.txt
+          retention-days: 7

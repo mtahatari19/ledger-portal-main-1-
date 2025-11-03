@@ -1,0 +1,45 @@
+@use '@angular/material' as mat;
+@use '../../base/base' as *;
+
+ledger-portal-accounts {
+  .account-cards-container {
+    @apply flex w-full snap-x snap-mandatory scroll-px-4 flex-nowrap gap-4 overflow-x-auto max-sm:px-12 max-[320px]:scroll-px-0;
+    // For Firefox
+    scrollbar-width: none;
+    // For Edge
+    -ms-overflow-style: none;
+
+    &::-webkit-scrollbar {
+      @apply hidden;
+    }
+
+    .account-card-wrapper {
+      @apply snap-center snap-always sm:first:ps-8 sm:last:pe-8 md:snap-start #{!important};
+    }
+
+    .account-card {
+      @apply block #{!important};
+      transition: all 0.1s ease !important;
+    }
+
+    .opening-account-card {
+      @apply border-primary bg-primary/5 text-primary flex select-none flex-col items-center justify-center rounded-2xl border  border-dashed font-semibold shadow-none #{!important};
+    }
+  }
+
+  .scroll-button {
+    @apply bg-foreground text-background absolute flex content-center items-center py-6 opacity-25 transition-opacity hover:opacity-50 #{!important};
+    top: 50%;
+    transform: translateY(-50%);
+  }
+
+  .hidden-account-card {
+    @apply border-foreground/5 bg-foreground/5 overflow-hidden rounded-xl border border-solid shadow-none #{!important};
+    background-image: url(#{$path-to-images}/account/hidden-account.svg) !important;
+    background-size: cover;
+  }
+
+  .card-bullet {
+    @apply bg-primary mx-1 h-[0.375rem] w-[0.375rem] rounded-full;
+  }
+}
